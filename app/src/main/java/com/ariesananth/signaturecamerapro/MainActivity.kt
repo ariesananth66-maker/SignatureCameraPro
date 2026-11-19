@@ -273,7 +273,7 @@ class MainActivity : ComponentActivity() {
                 else -> "UNKNOWN"
             }
             val caps = c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
-            val capNames = caps.mapNotNull { cap ->
+            val capNames = caps.map { cap ->
                 when (cap) {
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE -> "PHOTO/VIDEO"
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR -> "MANUAL SENSOR"
@@ -284,7 +284,7 @@ class MainActivity : ComponentActivity() {
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_ULTRA_HIGH_RESOLUTION_SENSOR -> "ULTRA-HIGH-RES"
                     else -> null
                 }
-            }
+            }.filterNotNull()
             val level = when (c.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)) {
                 CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
                 CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
@@ -309,7 +309,7 @@ class MainActivity : ComponentActivity() {
             report.append("\n\nCamera ID ").append(id).append(" • ").append(facing)
                 .append("\nHardware level: ").append(level)
                 .append("\nCapabilities: ").append(capNames.joinToString().ifBlank { "Standard only / not reported" })
-                .append("\nPhysical camera IDs: ").append(c.physicalCameraIds.joinToString().ifBlank { "Not exposed" })
+                .append("\nPhysical camera IDs: ").append(c.physicalCameraIds.toList().joinToString().ifBlank { "Not exposed" })
                 .append("\nFocal length(s): ").append(focal ?: "Not reported")
                 .append("\nSensor size: ").append(physical?.let { "%.2f x %.2f mm".format(Locale.US, it.width, it.height) } ?: "Not reported")
                 .append("\nPixel array: ").append(pixelArray?.let { "${it.width} x ${it.height}" } ?: "Not reported")
