@@ -19,6 +19,7 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import android.graphics.drawable.GradientDrawable
 import androidx.activity.ComponentActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -116,7 +117,10 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(8, 8, 8, 18)
-            setBackgroundColor(0xDD000000.toInt())
+            setBackgroundColor(0xF20B0F19.toInt())
+            elevation = 24f
+            clipChildren = false
+            clipToPadding = false
         }
         val infoRow = LinearLayout(this).apply { gravity = Gravity.CENTER }
         exposureLabel = TextView(this).apply {
@@ -147,13 +151,19 @@ class MainActivity : ComponentActivity() {
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            clipChildren = false
+            clipToPadding = false
+            elevation = 16f
         }
         val flip = Button(this).apply {
             text = "FRONT / BACK"
             isAllCaps = false
             textSize = 12f
             setTextColor(android.graphics.Color.WHITE)
-            backgroundTintList = ColorStateList.valueOf(0xFF344054.toInt())
+            background = GradientDrawable().apply { cornerRadius = 18f; setColor(0xFF344054.toInt()) }
+            elevation = 8f
+            isClickable = true
+            isFocusable = true
             minWidth = 0
             minHeight = 58
             setPadding(4, 0, 4, 0)
@@ -168,7 +178,10 @@ class MainActivity : ComponentActivity() {
             textSize = 20f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
-            backgroundTintList = ColorStateList.valueOf(0xFF1677FF.toInt())
+            background = GradientDrawable().apply { cornerRadius = 36f; setColor(0xFF1677FF.toInt()) }
+            elevation = 10f
+            isClickable = true
+            isFocusable = true
             minWidth = 0
             minHeight = 64
             setPadding(4, 0, 4, 0)
@@ -220,6 +233,7 @@ class MainActivity : ComponentActivity() {
         }
         panel.addView(hint)
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        panel.bringToFront()
         setContentView(root)
     }
 
@@ -229,7 +243,10 @@ class MainActivity : ComponentActivity() {
             textSize = 10f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
-            backgroundTintList = ColorStateList.valueOf(0xFF475467.toInt())
+            background = GradientDrawable().apply { cornerRadius = 14f; setColor(0xFF475467.toInt()) }
+            elevation = 6f
+            isClickable = true
+            isFocusable = true
             minWidth = 0
             setPadding(4, 0, 4, 0)
             setOnClickListener { action(it) }
