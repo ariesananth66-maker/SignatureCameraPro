@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var gridView: GridOverlay
     private lateinit var zoomLabel: TextView
     private lateinit var exposureLabel: TextView
+    private lateinit var lensRow: LinearLayout
     private var imageCapture: ImageCapture? = null
     private var camera: Camera? = null
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -115,6 +116,8 @@ class MainActivity : ComponentActivity() {
         top.addView(title)
         top.addView(zoomLabel)
         top.addView(zoom, LinearLayout.LayoutParams(-1, 34))
+        lensRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, 4, 0, 2) }
+        top.addView(lensRow, LinearLayout.LayoutParams(-1, 44))
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
         val panel = LinearLayout(this).apply {
@@ -277,6 +280,57 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { action(it) }
         }
 
+    private fun discoverRearLenses() {
+        lensRow.removeAllViews()
+        val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+        val rearId = manager.cameraIdList.firstOrNull { id -> manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK } ?: return
+        val logical = manager.getCameraCharacteristics(rearId)
+        val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: return
+        val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return
+        val baseEquivalent = logicalFocal / logicalSize.width
+        val options = mutableListOf<Pair<String, Float>>()
+        options.add("1.0x" to 1f)
+        logical.physicalCameraIds.forEach { physicalId ->
+            try {
+                val physical = manager.getCameraCharacteristics(physicalId)
+                val focal = physical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
+                val size = physical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+                if (focal != null && size != null && size.width > 0f) {
+                    val ratio = (focal / size.width) / baseEquivalent
+                    if (ratio.isFinite() && ratio in 0.25f..10f && options.none { kotlin.math.abs(it.second - ratio) < 0.12f }) options.add("%.1fx".format(Locale.US, ratio) to ratio)
+                }
+            } catch (_: Exception) { }
+        }
+        val sorted = options.distinctBy { it.first }.sortedBy { it.second }
+        if (sorted.size <= 1) {
+            lensRow.addView(TextView(this).apply { text = "REAR LENS DETAILS NOT EXPOSED"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
+            return
+        }
+        sorted.forEach { (label, ratio) ->
+            val button = Button(this)
+            button.text = label
+            button.textSize = 12f
+            button.isAllCaps = false
+            button.setTextColor(android.graphics.Color.WHITE)
+            button.background = GradientDrawable().apply { cornerRadius = 14f; setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
+            button.minWidth = 0
+            button.minHeight = 38
+            button.setPadding(8, 0, 8, 0)
+            button.setOnClickListener {
+                if (cameraSelector != CameraSelector.DEFAULT_BACK_CAMERA) return@setOnClickListener
+                val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
+                val target = ratio.coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                camera?.cameraControl?.setZoomRatio(target)
+                zoomLabel.text = "LENS VIEW  $label"
+                for (i in 0 until lensRow.childCount) {
+                    val child = lensRow.getChildAt(i) as? Button ?: continue
+                    child.background = GradientDrawable().apply { cornerRadius = 14f; setColor(if (child.text == label) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
+                }
+            }
+            lensRow.addView(button, LinearLayout.LayoutParams(0, 40, 1f).apply { setMargins(3, 0, 3, 0) })
+        }
+    }
+
     private fun showHardwareReport() {
         val manager = getSystemService(CAMERA_SERVICE) as CameraManager
         val report = StringBuilder("MOTOROLA SIGNATURE • CAMERA2 HARDWARE REPORT\n")
@@ -317,6 +371,17 @@ class MainActivity : ComponentActivity() {
             val ev = c.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
             val maxZoom = c.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
             val physical = c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+            val physicalDetails = c.physicalCameraIds.mapNotNull { physicalId ->
+                try {
+                    val pc = manager.getCameraCharacteristics(physicalId)
+                    val pf = pc.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.joinToString()
+                    val ps = pc.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+                    val pa = pc.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
+                    val pm = pc.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                    val pj = pm?.getOutputSizes(ImageFormat.JPEG)?.maxByOrNull { it.width.toLong() * it.height }
+                    "ID $physicalId: focal=${pf ?: "?"}mm, sensor=${ps?.let { "%.2f x %.2fmm".format(Locale.US, it.width, it.height) } ?: "?"}, array=${pa?.let { "${it.width}x${it.height}" } ?: "?"}, JPEG=${pj?.let { "${it.width}x${it.height}" } ?: "?"}"
+                } catch (_: Exception) { "ID $physicalId: characteristics restricted by vendor" }
+            }
             val pixelArray = c.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
             val streamMap = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
             val jpeg = streamMap?.getOutputSizes(ImageFormat.JPEG)
@@ -328,6 +393,7 @@ class MainActivity : ComponentActivity() {
                 .append("\nHardware level: ").append(level)
                 .append("\nCapabilities: ").append(capNames.joinToString().ifBlank { "Standard only / not reported" })
                 .append("\nPhysical camera IDs: ").append(c.physicalCameraIds.toList().joinToString().ifBlank { "Not exposed" })
+                .append("\nPhysical camera details: ").append(physicalDetails.joinToString(" | ").ifBlank { "Not available" })
                 .append("\nFocal length(s): ").append(focal ?: "Not reported")
                 .append("\nSensor size: ").append(physical?.let { "%.2f x %.2f mm".format(Locale.US, it.width, it.height) } ?: "Not reported")
                 .append("\nPixel array: ").append(pixelArray?.let { "${it.width} x ${it.height}" } ?: "Not reported")
@@ -395,6 +461,10 @@ class MainActivity : ComponentActivity() {
             try {
                 provider.unbindAll()
                 camera = provider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) discoverRearLenses() else {
+                    lensRow.removeAllViews()
+                    lensRow.addView(TextView(this).apply { text = "FRONT CAMERA"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
+                }
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
             } catch (e: Exception) {
