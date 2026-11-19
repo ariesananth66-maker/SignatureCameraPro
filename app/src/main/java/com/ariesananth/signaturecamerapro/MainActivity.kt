@@ -83,17 +83,17 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(12, 10, 12, 10)
-            setBackgroundColor(0x99000000.toInt())
+            background = GradientDrawable().apply { cornerRadius = 22f; setColor(0xCC080B12.toInt()); setStroke(1, 0x44FFFFFF) }
         }
         val title = TextView(this).apply {
-            text = "SIGNATURE  •  CAMERA PRO"
+            text = "MOTOROLA SIGNATURE"
             textSize = 14f
             letterSpacing = 0.12f
             setTextColor(-1)
             gravity = Gravity.CENTER
         }
         zoomLabel = TextView(this).apply {
-            text = "ZOOM  1.0x"
+            text = "CAMERA  •  ZOOM 1.0x"
             textSize = 12f
             setTextColor(-1)
             gravity = Gravity.CENTER
@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(12, 10, 12, 16)
-            setBackgroundColor(0xE6090D16.toInt())
+            background = GradientDrawable().apply { cornerRadii = floatArrayOf(28f, 28f, 28f, 28f, 0f, 0f, 0f, 0f); setColor(0xF20A0E18.toInt()); setStroke(1, 0x33FFFFFF) }
             elevation = 24f
             clipChildren = false
             clipToPadding = false
@@ -194,8 +194,8 @@ class MainActivity : ComponentActivity() {
             }
         }
         val capture = Button(this).apply {
-            text = "●  PHOTO"
-            textSize = 20f
+            text = "●"
+            textSize = 30f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 36f; setColor(0xFF1677FF.toInt()) }
@@ -246,7 +246,7 @@ class MainActivity : ComponentActivity() {
         mainRow.addView(flash, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
         val hint = TextView(this).apply {
-            text = "Tap preview to focus  •  Pinch/slider to zoom"
+            text = "TAP TO FOCUS     •     PINCH TO ZOOM"
             textSize = 11f
             setTextColor(0xFFBBBBBB.toInt())
             gravity = Gravity.CENTER
