@@ -150,9 +150,27 @@ class MainActivity : ComponentActivity() {
         }
         infoRow.addView(gridButton, LinearLayout.LayoutParams(0, 44, 1f))
         infoRow.addView(timerButton, LinearLayout.LayoutParams(0, 44, 1f))
-        val hardwareButton = smallButton("HARDWARE") { showHardwareReport() }
-        infoRow.addView(hardwareButton, LinearLayout.LayoutParams(0, 44, 1f))
         panel.addView(infoRow)
+
+        // Dedicated full-width diagnostic button; never squeezed off-screen.
+        val hardwareButton = Button(this).apply {
+            text = "DEVICE HARDWARE REPORT"
+            textSize = 13f
+            isAllCaps = false
+            setTextColor(android.graphics.Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = 16f
+                setColor(0xFF1677FF.toInt())
+            }
+            elevation = 8f
+            minHeight = 52
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { showHardwareReport() }
+        }
+        panel.addView(hardwareButton, LinearLayout.LayoutParams(-1, 52).apply {
+            setMargins(4, 6, 4, 4)
+        })
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
