@@ -3,6 +3,7 @@ package com.ariesananth.signaturecamerapro
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.os.Bundle
@@ -148,7 +149,14 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         val flip = Button(this).apply {
-            text = "FLIP"
+            text = "FRONT / BACK"
+            isAllCaps = false
+            textSize = 12f
+            setTextColor(android.graphics.Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(0xFF344054.toInt())
+            minWidth = 0
+            minHeight = 58
+            setPadding(4, 0, 4, 0)
             setOnClickListener {
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
@@ -156,8 +164,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         val capture = Button(this).apply {
-            text = "●"
-            textSize = 28f
+            text = "●  PHOTO"
+            textSize = 20f
+            isAllCaps = false
+            setTextColor(android.graphics.Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(0xFF1677FF.toInt())
+            minWidth = 0
+            minHeight = 64
+            setPadding(4, 0, 4, 0)
             contentDescription = "Take photo"
             setOnClickListener {
                 if (timerSeconds == 0) takePhoto()
@@ -175,16 +189,28 @@ class MainActivity : ComponentActivity() {
         }
         val flash = Button(this).apply {
             text = "FLASH OFF"
+            isAllCaps = false
+            textSize = 12f
+            setTextColor(android.graphics.Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(0xFF344054.toInt())
+            minWidth = 0
+            minHeight = 58
+            setPadding(4, 0, 4, 0)
             setOnClickListener {
                 val image = imageCapture ?: return@setOnClickListener
+                if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
+                    Toast.makeText(this@MainActivity, "Flash is not available on front camera", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 val enabled = image.flashMode != ImageCapture.FLASH_MODE_ON
                 image.flashMode = if (enabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 text = if (enabled) "FLASH ON" else "FLASH OFF"
             }
         }
-        mainRow.addView(flip, LinearLayout.LayoutParams(0, 54, 1f))
-        mainRow.addView(capture, LinearLayout.LayoutParams(0, 60, 1.2f))
-        mainRow.addView(flash, LinearLayout.LayoutParams(0, 54, 1f))
+        mainRow.setPadding(4, 8, 4, 8)
+        mainRow.addView(flip, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(capture, LinearLayout.LayoutParams(0, 64, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(flash, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
         val hint = TextView(this).apply {
             text = "Tap preview to focus  •  Pinch/slider to zoom"
@@ -201,6 +227,9 @@ class MainActivity : ComponentActivity() {
         Button(this).apply {
             text = label
             textSize = 10f
+            isAllCaps = false
+            setTextColor(android.graphics.Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(0xFF475467.toInt())
             minWidth = 0
             setPadding(4, 0, 4, 0)
             setOnClickListener { action(it) }
