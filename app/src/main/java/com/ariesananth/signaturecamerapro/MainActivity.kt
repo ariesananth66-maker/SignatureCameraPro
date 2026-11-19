@@ -1,6 +1,9 @@
 package com.ariesananth.signaturecamerapro
 
 import android.Manifest
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.graphics.ImageFormat
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -17,6 +20,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import android.graphics.drawable.GradientDrawable
@@ -122,7 +126,7 @@ class MainActivity : ComponentActivity() {
             clipChildren = false
             clipToPadding = false
         }
-        val infoRow = LinearLayout(this).apply { gravity = Gravity.CENTER }
+        val infoRow = LinearLayout(this).apply { gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(-1, -2) }
         exposureLabel = TextView(this).apply {
             text = "EV  0"
             textSize = 12f
@@ -133,8 +137,8 @@ class MainActivity : ComponentActivity() {
         infoRow.addView(exposureLabel)
         val evMinus = smallButton("EV −") { changeExposure(-1) }
         val evPlus = smallButton("EV +") { changeExposure(1) }
-        infoRow.addView(evMinus)
-        infoRow.addView(evPlus)
+        infoRow.addView(evMinus, LinearLayout.LayoutParams(0, 44, 1f))
+        infoRow.addView(evPlus, LinearLayout.LayoutParams(0, 44, 1f))
         val gridButton = smallButton("GRID OFF") {
             gridEnabled = !gridEnabled
             gridView.visibility = if (gridEnabled) View.VISIBLE else View.GONE
@@ -144,13 +148,16 @@ class MainActivity : ComponentActivity() {
             timerSeconds = when (timerSeconds) { 0 -> 3; 3 -> 10; else -> 0 }
             (it as Button).text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
         }
-        infoRow.addView(gridButton)
-        infoRow.addView(timerButton)
+        infoRow.addView(gridButton, LinearLayout.LayoutParams(0, 44, 1f))
+        infoRow.addView(timerButton, LinearLayout.LayoutParams(0, 44, 1f))
+        val hardwareButton = smallButton("HARDWARE") { showHardwareReport() }
+        infoRow.addView(hardwareButton, LinearLayout.LayoutParams(0, 44, 1f))
         panel.addView(infoRow)
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
             clipChildren = false
             clipToPadding = false
             elevation = 16f
@@ -251,6 +258,92 @@ class MainActivity : ComponentActivity() {
             setPadding(4, 0, 4, 0)
             setOnClickListener { action(it) }
         }
+
+    private fun showHardwareReport() {
+        val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+        val report = StringBuilder("MOTOROLA SIGNATURE • CAMERA2 HARDWARE REPORT\n")
+        report.append("Android ").append(android.os.Build.VERSION.RELEASE)
+            .append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\n")
+        for (id in manager.cameraIdList) {
+            val c = manager.getCameraCharacteristics(id)
+            val facing = when (c.get(CameraCharacteristics.LENS_FACING)) {
+                CameraCharacteristics.LENS_FACING_BACK -> "BACK"
+                CameraCharacteristics.LENS_FACING_FRONT -> "FRONT"
+                CameraCharacteristics.LENS_FACING_EXTERNAL -> "EXTERNAL"
+                else -> "UNKNOWN"
+            }
+            val caps = c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+            val capNames = caps.mapNotNull { cap ->
+                when (cap) {
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE -> "PHOTO/VIDEO"
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR -> "MANUAL SENSOR"
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING -> "MANUAL PROCESSING"
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW -> "RAW/DNG"
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA -> "LOGICAL MULTI-CAMERA"
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO -> "HIGH-SPEED VIDEO"
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_ULTRA_HIGH_RESOLUTION_SENSOR -> "ULTRA-HIGH-RES"
+                    else -> null
+                }
+            }
+            val level = when (c.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)) {
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL 3"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
+                else -> "UNKNOWN"
+            }
+            val focal = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.joinToString()
+            val iso = c.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+            val shutter = c.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+            val ev = c.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+            val maxZoom = c.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+            val physical = c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+            val pixelArray = c.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
+            val streamMap = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            val jpeg = streamMap?.getOutputSizes(ImageFormat.JPEG)
+                ?.maxByOrNull { it.width.toLong() * it.height }
+            val raw = streamMap?.getOutputSizes(ImageFormat.RAW_SENSOR)
+                ?.maxByOrNull { it.width.toLong() * it.height }
+            val fps = c.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)?.joinToString()
+            report.append("\n\nCamera ID ").append(id).append(" • ").append(facing)
+                .append("\nHardware level: ").append(level)
+                .append("\nCapabilities: ").append(capNames.joinToString().ifBlank { "Standard only / not reported" })
+                .append("\nPhysical camera IDs: ").append(c.physicalCameraIds.joinToString().ifBlank { "Not exposed" })
+                .append("\nFocal length(s): ").append(focal ?: "Not reported")
+                .append("\nSensor size: ").append(physical?.let { "%.2f x %.2f mm".format(Locale.US, it.width, it.height) } ?: "Not reported")
+                .append("\nPixel array: ").append(pixelArray?.let { "${it.width} x ${it.height}" } ?: "Not reported")
+                .append("\nMax JPEG stream: ").append(jpeg?.let { "${it.width} x ${it.height}" } ?: "Not reported")
+                .append("\nMax RAW stream: ").append(raw?.let { "${it.width} x ${it.height}" } ?: "Not supported/reported")
+                .append("\nISO range: ").append(iso?.let { "${it.lower}–${it.upper}" } ?: "Not reported")
+                .append("\nShutter range (ns): ").append(shutter?.let { "${it.lower}–${it.upper}" } ?: "Not reported")
+                .append("\nEV compensation steps: ").append(ev?.let { "${it.lower} to ${it.upper}" } ?: "Not reported")
+                .append("\nMax digital zoom: ").append(maxZoom ?: "Not reported")
+                .append("\nAE frame-rate ranges: ").append(fps ?: "Not reported")
+        }
+        val body = TextView(this).apply {
+            text = report.toString()
+            textSize = 13f
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(20, 16, 20, 16)
+        }
+        val scroll = ScrollView(this).apply {
+            addView(body)
+            setBackgroundColor(0xFF101827.toInt())
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Device camera capabilities")
+            .setView(scroll)
+            .setPositiveButton("CLOSE", null)
+            .setNeutralButton("SHARE REPORT") { _, _ ->
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, report.toString())
+                }
+                startActivity(android.content.Intent.createChooser(send, "Share camera report"))
+            }
+            .show()
+    }
 
     private fun focusAt(x: Float, y: Float) {
         val activeCamera = camera ?: return
