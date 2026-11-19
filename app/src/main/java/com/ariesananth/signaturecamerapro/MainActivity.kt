@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Gravity
-import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -21,14 +20,13 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
-import java.util.Locale
 import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private lateinit var previewView: PreviewView
     private var imageCapture: ImageCapture? = null
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-    private var cameraProvider: ProcessCameraProvider? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,9 +42,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildCameraUi() {
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(android.graphics.Color.BLACK)
-        }
+        val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         previewView = PreviewView(this).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
@@ -65,12 +61,11 @@ class MainActivity : ComponentActivity() {
             setPadding(18, 18, 18, 18)
             setBackgroundColor(0x66000000)
         }
-        val topParams = FrameLayout.LayoutParams(
+        root.addView(topLabel, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        ).apply { topMargin = 28 }
-        root.addView(topLabel, topParams)
+        ).apply { topMargin = 28 })
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -113,13 +108,11 @@ class MainActivity : ComponentActivity() {
         controls.addView(switchButton, LinearLayout.LayoutParams(0, 58, 1f))
         controls.addView(captureButton, LinearLayout.LayoutParams(0, 64, 1.2f))
         controls.addView(flashButton, LinearLayout.LayoutParams(0, 58, 1f))
-
-        val bottomParams = FrameLayout.LayoutParams(
+        root.addView(controls, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM
-        )
-        root.addView(controls, bottomParams)
+        ))
         setContentView(root)
     }
 
@@ -131,8 +124,6 @@ class MainActivity : ComponentActivity() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val provider = cameraProviderFuture.get()
-            cameraProvider = provider
-
             val preview = Preview.Builder().build().also {
                 it.surfaceProvider = previewView.surfaceProvider
             }
@@ -183,7 +174,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array<out String>,
+        permissions: Array<String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
