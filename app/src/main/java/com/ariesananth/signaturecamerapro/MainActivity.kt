@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
         }
         top.addView(title)
         top.addView(zoomLabel)
-        top.addView(zoom, LinearLayout.LayoutParams(-1, 34))
+        top.addView(zoom, LinearLayout.LayoutParams(-1, 42))
         lensRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, 4, 0, 2) }
         top.addView(lensRow, LinearLayout.LayoutParams(-1, 44))
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
@@ -123,25 +123,35 @@ class MainActivity : ComponentActivity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(8, 8, 8, 18)
-            setBackgroundColor(0xF20B0F19.toInt())
+            setPadding(12, 10, 12, 16)
+            setBackgroundColor(0xE6090D16.toInt())
             elevation = 24f
             clipChildren = false
             clipToPadding = false
         }
-        val infoRow = LinearLayout(this).apply { gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(-1, -2) }
+        // Spacious two-row control deck: exposure controls stay separate from utility toggles.
+        val exposureRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+        }
         exposureLabel = TextView(this).apply {
             text = "EV  0"
-            textSize = 12f
+            textSize = 13f
             setTextColor(-1)
             gravity = Gravity.CENTER
-            setPadding(8, 0, 8, 0)
+            setPadding(10, 0, 10, 0)
         }
-        infoRow.addView(exposureLabel)
-        val evMinus = smallButton("EV −") { changeExposure(-1) }
-        val evPlus = smallButton("EV +") { changeExposure(1) }
-        infoRow.addView(evMinus, LinearLayout.LayoutParams(0, 44, 1f))
-        infoRow.addView(evPlus, LinearLayout.LayoutParams(0, 44, 1f))
+        exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, 46, 1f))
+        exposureRow.addView(smallButton("−  EV") { changeExposure(-1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
+        exposureRow.addView(smallButton("+  EV") { changeExposure(1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
+        panel.addView(exposureRow)
+
+        val utilityRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+        }
         val gridButton = smallButton("GRID OFF") {
             gridEnabled = !gridEnabled
             gridView.visibility = if (gridEnabled) View.VISIBLE else View.GONE
@@ -151,29 +161,11 @@ class MainActivity : ComponentActivity() {
             timerSeconds = when (timerSeconds) { 0 -> 3; 3 -> 10; else -> 0 }
             (it as Button).text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
         }
-        infoRow.addView(gridButton, LinearLayout.LayoutParams(0, 44, 1f))
-        infoRow.addView(timerButton, LinearLayout.LayoutParams(0, 44, 1f))
-        panel.addView(infoRow)
-
-        // Dedicated full-width diagnostic button; never squeezed off-screen.
-        val hardwareButton = Button(this).apply {
-            text = "DEVICE HARDWARE REPORT"
-            textSize = 13f
-            isAllCaps = false
-            setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply {
-                cornerRadius = 16f
-                setColor(0xFF1677FF.toInt())
-            }
-            elevation = 8f
-            minHeight = 52
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { showHardwareReport() }
-        }
-        panel.addView(hardwareButton, LinearLayout.LayoutParams(-1, 52).apply {
-            setMargins(4, 6, 4, 4)
-        })
+        val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
+        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
+        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
+        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
+        panel.addView(utilityRow)
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
