@@ -57,6 +57,9 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
+import androidx.camera.core.ResolutionSelector
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
@@ -91,6 +94,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoStabilizationButton: Button
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
+    private lateinit var screenFlashOverlay: View
+    private var screenFlashEnabled = true
     private var photoFlashMode = ImageCapture.FLASH_MODE_OFF
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
@@ -139,6 +144,7 @@ class MainActivity : ComponentActivity() {
         timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
         jpegQuality = cameraPrefs.getInt("jpeg_quality", 95).let { if (it == 90 || it == 95 || it == 100) it else 95 }
         photoFlashMode = cameraPrefs.getInt("photo_flash_mode", ImageCapture.FLASH_MODE_OFF).let { if (it == ImageCapture.FLASH_MODE_AUTO || it == ImageCapture.FLASH_MODE_ON || it == ImageCapture.FLASH_MODE_OFF) it else ImageCapture.FLASH_MODE_OFF }
+        screenFlashEnabled = cameraPrefs.getBoolean("screen_flash_enabled", true)
         videoQuality = when (cameraPrefs.getString("video_quality", "FHD")) {
             "UHD" -> Quality.UHD
             "HD" -> Quality.HD
@@ -172,6 +178,13 @@ class MainActivity : ComponentActivity() {
             isFocusable = false
         }
         root.addView(focusOverlay, FrameLayout.LayoutParams(-1, -1))
+        screenFlashOverlay = View(this).apply {
+            setBackgroundColor(android.graphics.Color.WHITE)
+            alpha = 0f
+            visibility = View.GONE
+            isClickable = false
+        }
+        root.addView(screenFlashOverlay, FrameLayout.LayoutParams(-1, -1))
 
         val scaleDetector = android.view.ScaleGestureDetector(this,
             object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -223,14 +236,14 @@ class MainActivity : ComponentActivity() {
         }
         val title = TextView(this).apply {
             text = "MOTOROLA SIGNATURE"
-            textSize = 14f
+            textSize = 16f
             letterSpacing = 0.12f
             setTextColor(-1)
             gravity = Gravity.CENTER
         }
         zoomLabel = TextView(this).apply {
             text = "CAMERA  •  ZOOM 1.0x"
-            textSize = 12f
+            textSize = 14f
             setTextColor(-1)
             gravity = Gravity.CENTER
             setPadding(0, 6, 0, 2)
@@ -275,7 +288,7 @@ class MainActivity : ComponentActivity() {
         }
         exposureLabel = TextView(this).apply {
             text = "EV  0"
-            textSize = 13f
+            textSize = 15f
             setTextColor(-1)
             gravity = Gravity.CENTER
             setPadding(10, 0, 10, 0)
@@ -440,10 +453,10 @@ class MainActivity : ComponentActivity() {
         videoQualityButton = smallButton("FHD") { cycleVideoQuality() }
         videoFpsButton = smallButton("30 FPS") { cycleVideoFps() }
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
-        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 44, 1.15f).apply { setMargins(3, 0, 3, 0) })
-        videoRow.addView(videoQualityButton, LinearLayout.LayoutParams(0, 44, 0.8f).apply { setMargins(3, 0, 3, 0) })
-        videoRow.addView(videoFpsButton, LinearLayout.LayoutParams(0, 44, 0.8f).apply { setMargins(3, 0, 3, 0) })
-        videoRow.addView(videoStabilizationButton, LinearLayout.LayoutParams(0, 44, 1.2f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 52, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoQualityButton, LinearLayout.LayoutParams(0, 52, 0.8f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoFpsButton, LinearLayout.LayoutParams(0, 52, 0.8f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoStabilizationButton, LinearLayout.LayoutParams(0, 52, 1.2f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(videoRow)
 
         val mainRow = LinearLayout(this).apply {
@@ -490,7 +503,7 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 64
+            minHeight = 76
             setPadding(4, 0, 4, 0)
             contentDescription = "Take photo"
             contentDescription = "Take photo or control video recording"
@@ -507,7 +520,11 @@ class MainActivity : ComponentActivity() {
             setPadding(4, 0, 4, 0)
             setOnClickListener {
                 if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
-                    Toast.makeText(this@MainActivity, "Flash is not available on front camera", Toast.LENGTH_SHORT).show()
+                    if (!videoMode) {
+                        screenFlashEnabled = !screenFlashEnabled
+                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putBoolean("screen_flash_enabled", screenFlashEnabled).apply()
+                        syncFlashButtonLabel()
+                    } else Toast.makeText(this@MainActivity, "Screen flash is available for selfies", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (videoMode) {
@@ -528,10 +545,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         mainRow.setPadding(4, 8, 4, 8)
-        mainRow.addView(flip, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(0, 64, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(flip, LinearLayout.LayoutParams(0, 76, 1f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(0, 76, 1.15f).apply { setMargins(3, 0, 3, 0) })
         syncFlashButtonLabel()
-        mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 76, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS     •     PINCH TO ZOOM"
@@ -548,7 +565,7 @@ class MainActivity : ComponentActivity() {
     private fun syncFlashButtonLabel() {
         if (!::flashButton.isInitialized) return
         flashButton.text = when {
-            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> "NO FLASH"
+            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> if (videoMode) "SELFIE LIGHT PHOTO" else if (screenFlashEnabled) "SCREEN FLASH ON" else "SCREEN FLASH OFF"
             videoMode -> "TORCH OFF"
             photoFlashMode == ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"
             photoFlashMode == ImageCapture.FLASH_MODE_ON -> "FLASH ON"
@@ -560,17 +577,17 @@ class MainActivity : ComponentActivity() {
     private fun smallButton(label: String, action: (View) -> Unit) =
         Button(this).apply {
             text = label
-            textSize = 13f
+            textSize = 15f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = 14f; setColor(0xFF475467.toInt()) }
+            background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF475467.toInt()) }
             elevation = 6f
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 52
+            minHeight = 56
             contentDescription = label
-            setPadding(10, 0, 10, 0)
+            setPadding(12, 0, 12, 0)
             setOnClickListener { action(it) }
         }
 
@@ -1172,7 +1189,12 @@ class MainActivity : ComponentActivity() {
                     photoExtensionButton.isEnabled = false
                 } else {
                     videoCapture = null
+                    val photoResolution = ResolutionSelector.Builder()
+                        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                        .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                        .build()
                     imageCapture = ImageCapture.Builder()
+                        .setResolutionSelector(photoResolution)
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
@@ -1195,7 +1217,7 @@ class MainActivity : ComponentActivity() {
                     try {
                         provider.unbindAll()
                         val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-                        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(jpegQuality).setFlashMode(photoFlashMode).build()
+                        imageCapture = ImageCapture.Builder().setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build()).setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(jpegQuality).setFlashMode(photoFlashMode).build()
                         camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
                         updateManualRanges()
                     } catch (fallback: Exception) {
@@ -1646,6 +1668,11 @@ class MainActivity : ComponentActivity() {
         val options = ImageCapture.OutputFileOptions.Builder(
             contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
         ).build()
+        if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA && screenFlashEnabled) {
+            screenFlashOverlay.visibility = View.VISIBLE
+            screenFlashOverlay.alpha = 1f
+            handler.postDelayed({ screenFlashOverlay.visibility = View.GONE; screenFlashOverlay.alpha = 0f }, 350L)
+        }
         capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                 if (::captureButton.isInitialized) captureButton.isEnabled = true
