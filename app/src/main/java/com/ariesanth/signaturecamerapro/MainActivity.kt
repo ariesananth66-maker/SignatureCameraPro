@@ -1312,12 +1312,16 @@ class MainActivity : ComponentActivity() {
                     activeMuxer.stop()
                 } finally {
                     // Release the muxer while the descriptor is still open.
-                    try { activeMuxer.release() } catch (_: Exception) { }
+                    // A release failure must fail the save instead of publishing a possibly incomplete MP4.
+                    activeMuxer.release()
                     muxer = null
                 }
             }
             if (android.os.Build.VERSION.SDK_INT >= 29) {
-                contentResolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+                val publishedRows = contentResolver.update(
+                    uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null
+                )
+                if (publishedRows != 1) error("Could not publish the completed video to the gallery")
             }
             return uri
         } catch (e: Exception) {
