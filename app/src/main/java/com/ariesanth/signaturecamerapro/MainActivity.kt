@@ -1021,26 +1021,34 @@ class MainActivity : ComponentActivity() {
             pfd.use {
                 val activeMuxer = MediaMuxer(it.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
                 muxer = activeMuxer
-                val outVideo = activeMuxer.addTrack(video.getTrackFormat(vt))
-                val outAudio = activeMuxer.addTrack(audio.getTrackFormat(at))
+                val videoFormat = video.getTrackFormat(vt)
+                val audioFormat = audio.getTrackFormat(at)
+                val outVideo = activeMuxer.addTrack(videoFormat)
+                val outAudio = activeMuxer.addTrack(audioFormat)
+                if (videoFormat.containsKey(MediaFormat.KEY_ROTATION)) {
+                    activeMuxer.setOrientationHint(videoFormat.getInteger(MediaFormat.KEY_ROTATION))
+                }
                 activeMuxer.start()
                 video.selectTrack(vt); audio.selectTrack(at)
-                val vb = java.nio.ByteBuffer.allocate(1024 * 1024)
-                val ab = java.nio.ByteBuffer.allocate(256 * 1024)
                 var vTime = video.sampleTime
                 var aTime = audio.sampleTime
                 while (vTime >= 0 || aTime >= 0) {
                     val useVideo = aTime < 0 || (vTime >= 0 && vTime <= aTime)
                     val ex = if (useVideo) video else audio
-                    val buf = if (useVideo) vb else ab
-                    buf.clear()
-                    val size = ex.readSampleData(buf, 0)
-                    if (size < 0) {
+                    val sampleSize = ex.sampleSize
+                    if (sampleSize <= 0L || sampleSize > Int.MAX_VALUE) {
                         if (useVideo) vTime = -1 else aTime = -1
                         continue
                     }
-                    val info = MediaCodec.BufferInfo().apply { set(0, size, ex.sampleTime, ex.sampleFlags) }
-                    buf.position(0); buf.limit(size)
+                    val size = sampleSize.toInt()
+                    val buf = java.nio.ByteBuffer.allocate(size)
+                    val read = ex.readSampleData(buf, 0)
+                    if (read < 0) {
+                        if (useVideo) vTime = -1 else aTime = -1
+                        continue
+                    }
+                    val info = MediaCodec.BufferInfo().apply { set(0, read, ex.sampleTime, ex.sampleFlags) }
+                    buf.position(0); buf.limit(read)
                     activeMuxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
                     ex.advance()
                     if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
@@ -1906,6 +1914,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         hideScreenFlash()
+        // Finalize any active recording when the camera screen leaves the foreground.
+        if (recording != null) {
+            try { recording?.stop() } catch (_: Exception) { }
+            stopExternalAudio()
+        }
         countdownRunnable?.let { handler.removeCallbacks(it) }
         countdownRunnable = null
         countdownActive = false
