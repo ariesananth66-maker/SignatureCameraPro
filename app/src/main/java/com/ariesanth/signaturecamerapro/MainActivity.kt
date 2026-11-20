@@ -1141,7 +1141,10 @@ class MainActivity : ComponentActivity() {
                 }
                 val level = (((dbfs + 60.0) / 60.0) * 100.0).toInt().coerceIn(0, 100)
                 if (::audioLevelBar.isInitialized) audioLevelBar.progress = level
-                if (::audioLevelLabel.isInitialized) audioLevelLabel.text = "MIC  •  LIVE INPUT  $level%"
+                if (::audioLevelLabel.isInitialized) {
+                    val levelText = if (amplitude == 0) "NO INPUT" else "${dbfs.toInt()} dBFS"
+                    audioLevelLabel.text = "MIC  •  $levelText"
+                }
                 handler.postDelayed(this, 120L)
             }
         }
