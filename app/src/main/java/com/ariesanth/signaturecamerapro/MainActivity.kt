@@ -263,6 +263,10 @@ class MainActivity : ComponentActivity() {
         utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
         utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
         val proButton = smallButton("PRO CONTROLS") {
+            if (!proModeEnabled && selectedPhotoExtension != null) {
+                Toast.makeText(this, "Turn off the OEM photo effect before using manual Pro controls", Toast.LENGTH_SHORT).show()
+                return@smallButton
+            }
             proModeEnabled = !proModeEnabled
             proPanel.visibility = if (proModeEnabled) View.VISIBLE else View.GONE
             (it as Button).text = if (proModeEnabled) "PRO ON" else "PRO CONTROLS"
