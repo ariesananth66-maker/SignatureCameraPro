@@ -455,7 +455,7 @@ class MainActivity : ComponentActivity() {
     private fun smallButton(label: String, action: (View) -> Unit) =
         Button(this).apply {
             text = label
-            textSize = 12f
+            textSize = 13f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 14f; setColor(0xFF475467.toInt()) }
@@ -463,9 +463,9 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 48
+            minHeight = 52
             contentDescription = label
-            setPadding(8, 0, 8, 0)
+            setPadding(10, 0, 10, 0)
             setOnClickListener { action(it) }
         }
 
@@ -756,6 +756,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cycleVideoQuality() {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing video quality", Toast.LENGTH_SHORT).show()
+            return
+        }
         val activeCamera = camera ?: return
         val supported = QualitySelector.getSupportedQualities(activeCamera.cameraInfo)
         val choices = listOf(Quality.UHD, Quality.FHD, Quality.HD, Quality.SD).filter { supported.contains(it) }
@@ -775,6 +779,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cycleVideoFps() {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing frame rate", Toast.LENGTH_SHORT).show()
+            return
+        }
         val choices = listOf(30, 60).filter { fps -> availableFpsRanges.any { it.lower == fps && it.upper == fps } }
         if (choices.isEmpty()) {
             Toast.makeText(this, "30/60 FPS modes are not exposed by this camera", Toast.LENGTH_SHORT).show()
@@ -787,6 +795,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleVideoStabilization() {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing stabilization", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (!videoStabilizationButton.isEnabled) {
             Toast.makeText(this, "Video stabilization is not supported", Toast.LENGTH_SHORT).show()
             return
