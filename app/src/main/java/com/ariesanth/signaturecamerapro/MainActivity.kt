@@ -627,6 +627,7 @@ class MainActivity : ComponentActivity() {
                     if (!videoMode) {
                         screenFlashEnabled = !screenFlashEnabled
                         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putBoolean("screen_flash_enabled", screenFlashEnabled).apply()
+                        updateScreenFlashPreview()
                         syncFlashButtonLabel()
                     } else Toast.makeText(this@MainActivity, "Front screen light is not available during video recording", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
@@ -885,19 +886,16 @@ class MainActivity : ComponentActivity() {
             val zoomState = camera?.cameraInfo?.zoomState?.value
             val inSupportedRange = zoomState != null &&
                 ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio
-            val extensionBlocksLensSwitch = selectedPhotoExtension != null
-            button.isEnabled = inSupportedRange && !extensionBlocksLensSwitch
+            // Keep lens presets available in OEM Night/HDR modes when the active
+            // logical camera reports that zoom ratio as supported.
+            button.isEnabled = inSupportedRange
             button.alpha = if (button.isEnabled) 1f else 0.42f
-            button.contentDescription = when {
-                extensionBlocksLensSwitch -> "$label lens preset unavailable while an OEM photo effect is active"
-                !inSupportedRange -> "$label lens preset is outside the supported zoom range"
-                else -> "Switch logical rear camera to the $label lens view"
+            button.contentDescription = if (!inSupportedRange) {
+                "$label lens preset is outside the supported zoom range"
+            } else {
+                "Switch logical rear camera to the $label lens view"
             }
             button.setOnClickListener {
-                if (selectedPhotoExtension != null) {
-                    Toast.makeText(this, "Turn off the OEM photo effect to use lens presets", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
                 if (cameraSelector != CameraSelector.DEFAULT_BACK_CAMERA) return@setOnClickListener
                 val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
                 if (ratio < state.minZoomRatio || ratio > state.maxZoomRatio) {
@@ -1561,6 +1559,7 @@ class MainActivity : ComponentActivity() {
                     lensRow.addView(TextView(this).apply { text = "FRONT CAMERA"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
                 }
                 camera?.cameraInfo?.zoomState?.value?.let { updateLensSelection(it.zoomRatio) }
+                updateScreenFlashPreview()
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
             } catch (e: Exception) {
@@ -2045,13 +2044,21 @@ class MainActivity : ComponentActivity() {
         })
     }
 
+    // A low-level white viewfinder fill gives the front camera preview a
+    // usable selfie light; the full-white pulse is reserved for the exposure.
+    private fun updateScreenFlashPreview() {
+        if (!::screenFlashOverlay.isInitialized) return
+        val showPreviewFill = cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA &&
+            !videoMode && screenFlashEnabled
+        screenFlashOverlay.animate().cancel()
+        screenFlashOverlay.alpha = if (showPreviewFill) 0.22f else 0f
+        screenFlashOverlay.visibility = if (showPreviewFill) View.VISIBLE else View.GONE
+    }
+
     private fun hideScreenFlash() {
         screenFlashHideRunnable?.let { handler.removeCallbacks(it) }
         screenFlashHideRunnable = null
-        if (::screenFlashOverlay.isInitialized) {
-            screenFlashOverlay.alpha = 0f
-            screenFlashOverlay.visibility = View.GONE
-        }
+        updateScreenFlashPreview()
     }
 
     override fun onStop() {
