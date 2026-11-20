@@ -1189,7 +1189,7 @@ class MainActivity : ComponentActivity() {
                     try {
                         provider.unbindAll()
                         val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-                        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(jpegQuality).setFlashMode(ImageCapture.FLASH_MODE_OFF).build()
+                        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(jpegQuality).setFlashMode(photoFlashMode).build()
                         camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
                         updateManualRanges()
                     } catch (fallback: Exception) {
