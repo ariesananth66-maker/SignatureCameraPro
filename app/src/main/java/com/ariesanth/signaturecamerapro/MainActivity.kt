@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var zoomLabel: TextView
     private lateinit var zoomSlider: SeekBar
     private lateinit var audioLevelLabel: TextView
+    private lateinit var recordingTimer: android.widget.Chronometer
     private lateinit var audioLevelBar: android.widget.ProgressBar
     private lateinit var exposureLabel: TextView
     private lateinit var lensRow: LinearLayout
@@ -314,6 +315,17 @@ class MainActivity : ComponentActivity() {
         }
         top.addView(title)
         top.addView(zoomLabel)
+        recordingTimer = android.widget.Chronometer(this).apply {
+            text = "● REC  00:00"
+            format = "● REC  %s"
+            textSize = 12f
+            letterSpacing = 0.08f
+            setTextColor(0xFFFF626B.toInt())
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            contentDescription = "Video recording duration"
+        }
+        top.addView(recordingTimer)
         top.addView(audioLevelLabel)
         audioLevelBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
@@ -1052,6 +1064,9 @@ class MainActivity : ComponentActivity() {
             ).start(ContextCompat.getMainExecutor(this)) { event ->
                 when (event) {
                     is VideoRecordEvent.Start -> {
+                        recordingTimer.base = android.os.SystemClock.elapsedRealtime()
+                        recordingTimer.visibility = View.VISIBLE
+                        recordingTimer.start()
                         captureButton.text = "■"
                         captureButton.contentDescription = "Stop video recording"
                         audioLevelLabel.text = "MIC  •  RECORDING"
@@ -1060,6 +1075,8 @@ class MainActivity : ComponentActivity() {
                     is VideoRecordEvent.Status -> Unit
                     is VideoRecordEvent.Finalize -> {
                         recording = null
+                        recordingTimer.stop()
+                        recordingTimer.visibility = View.GONE
                         stopExternalAudio()
                         if (event.hasError()) {
                             videoFile.delete(); audioFile.delete()
@@ -1095,6 +1112,10 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             stopExternalAudio()
+            if (::recordingTimer.isInitialized) {
+                recordingTimer.stop()
+                recordingTimer.visibility = View.GONE
+            }
             videoFile.delete(); audioFile.delete()
             activeVideoTempFile = null; activeAudioTempFile = null
             recording = null
