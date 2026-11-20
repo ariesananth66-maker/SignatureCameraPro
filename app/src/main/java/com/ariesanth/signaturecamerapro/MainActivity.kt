@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
         gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
         timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
         jpegQuality = cameraPrefs.getInt("jpeg_quality", 95).let { if (it == 90 || it == 95 || it == 100) it else 95 }
-        photoFlashMode = cameraPrefs.getInt("photo_flash_mode", ImageCapture.FLASH_MODE_OFF).let { if (it in ImageCapture.FLASH_MODE_OFF..ImageCapture.FLASH_MODE_ON) it else ImageCapture.FLASH_MODE_OFF }
+        photoFlashMode = cameraPrefs.getInt("photo_flash_mode", ImageCapture.FLASH_MODE_OFF).let { if (it == ImageCapture.FLASH_MODE_AUTO || it == ImageCapture.FLASH_MODE_ON || it == ImageCapture.FLASH_MODE_OFF) it else ImageCapture.FLASH_MODE_OFF }
         videoQuality = when (cameraPrefs.getString("video_quality", "FHD")) {
             "UHD" -> Quality.UHD
             "HD" -> Quality.HD
