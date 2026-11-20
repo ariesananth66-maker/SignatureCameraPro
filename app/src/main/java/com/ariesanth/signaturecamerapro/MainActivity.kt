@@ -628,7 +628,7 @@ class MainActivity : ComponentActivity() {
                         screenFlashEnabled = !screenFlashEnabled
                         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putBoolean("screen_flash_enabled", screenFlashEnabled).apply()
                         syncFlashButtonLabel()
-                    } else Toast.makeText(this@MainActivity, "Screen flash is available for selfies", Toast.LENGTH_SHORT).show()
+                    } else Toast.makeText(this@MainActivity, "Front screen light is not available during video recording", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (videoMode) {
@@ -776,7 +776,7 @@ class MainActivity : ComponentActivity() {
     private fun syncFlashButtonLabel() {
         if (!::flashButton.isInitialized) return
         val state = when {
-            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> if (videoMode) "SELFIE LIGHT" else if (screenFlashEnabled) "SCREEN ON" else "SCREEN OFF"
+            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> if (videoMode) "FRONT LIGHT N/A" else if (screenFlashEnabled) "SCREEN ON" else "SCREEN OFF"
             videoMode -> if (torchEnabled) "TORCH ON" else "TORCH OFF"
             photoFlashMode == ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"
             photoFlashMode == ImageCapture.FLASH_MODE_ON -> "FLASH ON"
