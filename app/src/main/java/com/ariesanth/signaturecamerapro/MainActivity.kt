@@ -2,7 +2,15 @@ package com.ariesananth.signaturecamerapro
 
 import android.Manifest
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
+import android.hardware.camera2.DngCreator
+import android.media.Image
+import android.media.ImageReader
+import android.net.Uri
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import android.hardware.camera2.CameraManager
@@ -246,6 +254,11 @@ class MainActivity : ComponentActivity() {
         proPanel.addView(isoSlider, LinearLayout.LayoutParams(-1, 40))
         proPanel.addView(shutterValue)
         proPanel.addView(shutterSlider, LinearLayout.LayoutParams(-1, 40))
+        proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
+            (view as Button).isEnabled = false
+            view.text = "CAPTURING RAW…"
+            captureRawDng(view)
+        }, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 8, 0, 0) })
         panel.addView(proPanel)
 
         val mainRow = LinearLayout(this).apply {
@@ -618,6 +631,178 @@ class MainActivity : ComponentActivity() {
     private fun formatShutter(valueNs: Long): String =
         if (valueNs < 1_000_000L) "${"%.0f".format(Locale.US, valueNs / 1000.0)} µs"
         else "${"%.2f".format(Locale.US, valueNs / 1_000_000.0)} ms"
+
+    /**
+     * RAW capture uses a short-lived Camera2 still session because CameraX ImageCapture
+     * outputs JPEG/YUV only. CameraX is unbound for the RAW shot and rebound afterwards.
+     */
+    private fun captureRawDng(trigger: Button) {
+        val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+        val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
+            CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
+        val cameraId = manager.cameraIdList.firstOrNull {
+            manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == facing
+        }
+        if (cameraId == null) {
+            trigger.isEnabled = true
+            trigger.text = "CAPTURE RAW / DNG"
+            Toast.makeText(this, "Camera not available", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val characteristics = manager.getCameraCharacteristics(cameraId)
+        val capabilities = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+        val rawSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            ?.getOutputSizes(ImageFormat.RAW_SENSOR)
+        if (!capabilities.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) || rawSizes.isNullOrEmpty()) {
+            trigger.isEnabled = true
+            trigger.text = "CAPTURE RAW / DNG"
+            Toast.makeText(this, "RAW/DNG is not exposed by this camera", Toast.LENGTH_LONG).show()
+            return
+        }
+        val rawSize = rawSizes.maxByOrNull { it.width.toLong() * it.height } ?: run {
+            trigger.isEnabled = true
+            trigger.text = "CAPTURE RAW / DNG"
+            return
+        }
+
+        val providerFuture = ProcessCameraProvider.getInstance(this)
+        providerFuture.addListener({
+            val provider = providerFuture.get()
+            provider.unbindAll()
+
+            var device: CameraDevice? = null
+            var session: CameraCaptureSession? = null
+            var reader: ImageReader? = null
+            var rawImage: Image? = null
+            var captureResult: TotalCaptureResult? = null
+            var finished = false
+            val callbackHandler = Handler(Looper.getMainLooper())
+
+            fun restore(message: String?, success: Boolean = false) {
+                if (finished) return
+                finished = true
+                try { rawImage?.close() } catch (_: Exception) { }
+                try { session?.close() } catch (_: Exception) { }
+                try { device?.close() } catch (_: Exception) { }
+                try { reader?.close() } catch (_: Exception) { }
+                runOnUiThread {
+                    trigger.isEnabled = true
+                    trigger.text = "CAPTURE RAW / DNG"
+                    if (message != null) Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    startCamera()
+                }
+            }
+
+            fun saveWhenReady() {
+                val image = rawImage ?: return
+                val result = captureResult ?: return
+                if (finished) return
+                finished = true
+                Thread {
+                    var savedUri: Uri? = null
+                    var error: String? = null
+                    try {
+                        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                        val values = ContentValues().apply {
+                            put(MediaStore.Images.Media.DISPLAY_NAME, "Signature_RAW_$stamp.dng")
+                            put(MediaStore.Images.Media.MIME_TYPE, "image/x-adobe-dng")
+                            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SignatureCameraPro")
+                            }
+                        }
+                        savedUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                            ?: throw IllegalStateException("Could not create Gallery entry")
+                        val output = contentResolver.openOutputStream(savedUri!!)
+                            ?: throw IllegalStateException("Could not open DNG output")
+                        output.use { stream ->
+                            val creator = DngCreator(characteristics, result)
+                            try { creator.writeImage(stream, image) } finally { creator.close() }
+                        }
+                    } catch (e: Exception) {
+                        error = e.localizedMessage ?: "DNG write failed"
+                        savedUri?.let { contentResolver.delete(it, null, null) }
+                    } finally {
+                        try { image.close() } catch (_: Exception) { }
+                        try { session?.close() } catch (_: Exception) { }
+                        try { device?.close() } catch (_: Exception) { }
+                        try { reader?.close() } catch (_: Exception) { }
+                    }
+                    runOnUiThread {
+                        trigger.isEnabled = true
+                        trigger.text = "CAPTURE RAW / DNG"
+                        Toast.makeText(this, if (error == null) "RAW DNG saved to Gallery" else "RAW failed: $error", Toast.LENGTH_LONG).show()
+                        startCamera()
+                    }
+                }.start()
+            }
+
+            try {
+                reader = ImageReader.newInstance(rawSize.width, rawSize.height, ImageFormat.RAW_SENSOR, 2)
+                reader!!.setOnImageAvailableListener({ source ->
+                    val next = source.acquireNextImage() ?: return@setOnImageAvailableListener
+                    if (rawImage == null) rawImage = next else next.close()
+                    saveWhenReady()
+                }, callbackHandler)
+
+                manager.openCamera(cameraId, object : CameraDevice.StateCallback() {
+                    override fun onOpened(opened: CameraDevice) {
+                        if (finished) { opened.close(); return }
+                        device = opened
+                        try {
+                            opened.createCaptureSession(listOf(reader!!.surface), object : CameraCaptureSession.StateCallback() {
+                                override fun onConfigured(configured: CameraCaptureSession) {
+                                    if (finished) { configured.close(); return }
+                                    session = configured
+                                    try {
+                                        val request = opened.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
+                                            addTarget(reader!!.surface)
+                                            set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                                            set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                                        }.build()
+                                        configured.capture(request, object : CameraCaptureSession.CaptureCallback() {
+                                            override fun onCaptureCompleted(
+                                                session: CameraCaptureSession,
+                                                request: CaptureRequest,
+                                                result: TotalCaptureResult
+                                            ) {
+                                                captureResult = result
+                                                saveWhenReady()
+                                            }
+                                            override fun onCaptureFailed(
+                                                session: CameraCaptureSession,
+                                                request: CaptureRequest,
+                                                failure: android.hardware.camera2.CaptureFailure
+                                            ) {
+                                                restore("RAW capture failed")
+                                            }
+                                        }, callbackHandler)
+                                    } catch (e: Exception) {
+                                        restore("RAW capture error: ${e.localizedMessage}")
+                                    }
+                                }
+                                override fun onConfigureFailed(failed: CameraCaptureSession) {
+                                    restore("RAW camera session could not be configured")
+                                }
+                            }, callbackHandler)
+                        } catch (e: Exception) {
+                            restore("RAW session error: ${e.localizedMessage}")
+                        }
+                    }
+                    override fun onDisconnected(disconnected: CameraDevice) {
+                        disconnected.close()
+                        restore("Camera disconnected during RAW capture")
+                    }
+                    override fun onError(failed: CameraDevice, errorCode: Int) {
+                        failed.close()
+                        restore("Camera2 error: $errorCode")
+                    }
+                }, callbackHandler)
+            } catch (e: Exception) {
+                restore("RAW capture unavailable: ${e.localizedMessage}")
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
