@@ -1248,64 +1248,69 @@ class MainActivity : ComponentActivity() {
             pfd.use {
                 val activeMuxer = MediaMuxer(it.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
                 muxer = activeMuxer
-                val videoFormat = video.getTrackFormat(vt)
-                val audioFormat = audio.getTrackFormat(at)
-                val outVideo = activeMuxer.addTrack(videoFormat)
-                val outAudio = activeMuxer.addTrack(audioFormat)
-                if (videoFormat.containsKey(MediaFormat.KEY_ROTATION)) {
-                    activeMuxer.setOrientationHint(videoFormat.getInteger(MediaFormat.KEY_ROTATION))
-                }
-                activeMuxer.start()
-                video.selectTrack(vt); audio.selectTrack(at)
-                var vTime = video.sampleTime
-                var aTime = audio.sampleTime
-                var videoBuffer = java.nio.ByteBuffer.allocate(0)
-                var audioBuffer = java.nio.ByteBuffer.allocate(0)
-                var writtenVideoSamples = 0L
-                var writtenAudioSamples = 0L
-                while (vTime >= 0 || aTime >= 0) {
-                    // Choose the next sample by its adjusted timestamp, not the raw per-file PTS.
-                    val alignedVideoTimeUs = if (vTime >= 0) vTime + videoPtsOffsetUs else Long.MAX_VALUE
-                    val alignedAudioTimeUs = if (aTime >= 0) aTime + audioPtsOffsetUs else Long.MAX_VALUE
-                    val useVideo = aTime < 0 || (vTime >= 0 && alignedVideoTimeUs <= alignedAudioTimeUs)
-                    val ex = if (useVideo) video else audio
-                    val sampleSize = ex.sampleSize
-                    if (sampleSize < 0L || sampleSize > Int.MAX_VALUE) {
-                        if (useVideo) vTime = -1 else aTime = -1
-                        continue
+                try {
+                    val videoFormat = video.getTrackFormat(vt)
+                    val audioFormat = audio.getTrackFormat(at)
+                    val outVideo = activeMuxer.addTrack(videoFormat)
+                    val outAudio = activeMuxer.addTrack(audioFormat)
+                    if (videoFormat.containsKey(MediaFormat.KEY_ROTATION)) {
+                        activeMuxer.setOrientationHint(videoFormat.getInteger(MediaFormat.KEY_ROTATION))
                     }
-                    if (sampleSize == 0L) {
+                    activeMuxer.start()
+                    video.selectTrack(vt); audio.selectTrack(at)
+                    var vTime = video.sampleTime
+                    var aTime = audio.sampleTime
+                    var videoBuffer = java.nio.ByteBuffer.allocate(0)
+                    var audioBuffer = java.nio.ByteBuffer.allocate(0)
+                    var writtenVideoSamples = 0L
+                    var writtenAudioSamples = 0L
+                    while (vTime >= 0 || aTime >= 0) {
+                        // Choose the next sample by its adjusted timestamp, not the raw per-file PTS.
+                        val alignedVideoTimeUs = if (vTime >= 0) vTime + videoPtsOffsetUs else Long.MAX_VALUE
+                        val alignedAudioTimeUs = if (aTime >= 0) aTime + audioPtsOffsetUs else Long.MAX_VALUE
+                        val useVideo = aTime < 0 || (vTime >= 0 && alignedVideoTimeUs <= alignedAudioTimeUs)
+                        val ex = if (useVideo) video else audio
+                        val sampleSize = ex.sampleSize
+                        if (sampleSize < 0L || sampleSize > Int.MAX_VALUE) {
+                            if (useVideo) vTime = -1 else aTime = -1
+                            continue
+                        }
+                        if (sampleSize == 0L) {
+                            ex.advance()
+                            if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
+                            continue
+                        }
+                        val size = sampleSize.toInt()
+                        var buf = if (useVideo) videoBuffer else audioBuffer
+                        if (buf.capacity() < size) {
+                            buf = java.nio.ByteBuffer.allocate(size)
+                            if (useVideo) videoBuffer = buf else audioBuffer = buf
+                        }
+                        buf.clear()
+                        val read = ex.readSampleData(buf, 0)
+                        if (read <= 0) {
+                            // Empty samples are not valid muxer payloads; advance safely without writing them.
+                            ex.advance()
+                            if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
+                            continue
+                        }
+                        val ptsOffsetUs = if (useVideo) videoPtsOffsetUs else audioPtsOffsetUs
+                        val info = MediaCodec.BufferInfo().apply { set(0, read, ex.sampleTime + ptsOffsetUs, ex.sampleFlags) }
+                        buf.position(0); buf.limit(read)
+                        activeMuxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
+                        if (useVideo) writtenVideoSamples++ else writtenAudioSamples++
                         ex.advance()
                         if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
-                        continue
                     }
-                    val size = sampleSize.toInt()
-                    var buf = if (useVideo) videoBuffer else audioBuffer
-                    if (buf.capacity() < size) {
-                        buf = java.nio.ByteBuffer.allocate(size)
-                        if (useVideo) videoBuffer = buf else audioBuffer = buf
-                    }
-                    buf.clear()
-                    val read = ex.readSampleData(buf, 0)
-                    if (read <= 0) {
-                        // Empty samples are not valid muxer payloads; advance safely without writing them.
-                        ex.advance()
-                        if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
-                        continue
-                    }
-                    val ptsOffsetUs = if (useVideo) videoPtsOffsetUs else audioPtsOffsetUs
-                    val info = MediaCodec.BufferInfo().apply { set(0, read, ex.sampleTime + ptsOffsetUs, ex.sampleFlags) }
-                    buf.position(0); buf.limit(read)
-                    activeMuxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
-                    if (useVideo) writtenVideoSamples++ else writtenAudioSamples++
-                    ex.advance()
-                    if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
+                    if (writtenVideoSamples == 0L) error("Video track contains no encoded samples")
+                    if (writtenAudioSamples == 0L) error("Microphone track contains no encoded audio samples")
+                    activeMuxer.stop()
+                } finally {
+                    // Release the muxer while the descriptor is still open.
+                    try { activeMuxer.release() } catch (_: Exception) { }
+                    muxer = null
                 }
-                if (writtenVideoSamples == 0L) error("Video track contains no encoded samples")
-                if (writtenAudioSamples == 0L) error("Microphone track contains no encoded audio samples")
-                activeMuxer.stop()
             }
-            muxer?.release(); muxer = null
             if (android.os.Build.VERSION.SDK_INT >= 29) {
                 contentResolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
             }
