@@ -1228,13 +1228,19 @@ class MainActivity : ComponentActivity() {
             audio.setDataSource(audioFile.absolutePath)
             val vt = (0 until video.trackCount).firstOrNull { video.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true } ?: error("Video track missing")
             val at = (0 until audio.trackCount).firstOrNull { audio.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true } ?: error("Audio track missing")
-            // CameraX and MediaRecorder have independent PTS origins; align them to one monotonic timeline.
+            // Select tracks first so each extractor exposes its actual first encoded sample PTS.
+            video.selectTrack(vt)
+            audio.selectTrack(at)
+            val firstVideoPtsUs = video.sampleTime
+            val firstAudioPtsUs = audio.sampleTime
+            if (firstVideoPtsUs < 0L || firstAudioPtsUs < 0L) error("Encoded track has no initial timestamp")
+            // Map each first encoded sample onto the shared monotonic start timeline.
             val audioStartNs = activeAudioStartElapsedNs
             val videoStartNs = activeVideoStartElapsedNs
             if (audioStartNs <= 0L || videoStartNs <= 0L) error("Recording start timestamps unavailable")
             val commonStartNs = minOf(audioStartNs, videoStartNs)
-            val audioPtsOffsetUs = (audioStartNs - commonStartNs) / 1_000L
-            val videoPtsOffsetUs = (videoStartNs - commonStartNs) / 1_000L
+            val audioPtsOffsetUs = (audioStartNs - commonStartNs) / 1_000L - firstAudioPtsUs
+            val videoPtsOffsetUs = (videoStartNs - commonStartNs) / 1_000L - firstVideoPtsUs
             val values = ContentValues().apply {
                 put(MediaStore.Video.Media.DISPLAY_NAME, name)
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -1257,7 +1263,6 @@ class MainActivity : ComponentActivity() {
                         activeMuxer.setOrientationHint(videoFormat.getInteger(MediaFormat.KEY_ROTATION))
                     }
                     activeMuxer.start()
-                    video.selectTrack(vt); audio.selectTrack(at)
                     var vTime = video.sampleTime
                     var aTime = audio.sampleTime
                     var videoBuffer = java.nio.ByteBuffer.allocate(0)
