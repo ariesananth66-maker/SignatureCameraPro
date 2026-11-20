@@ -58,6 +58,8 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.extensions.ExtensionMode
+import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
@@ -82,6 +84,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var focusSlider: SeekBar
     private lateinit var whiteBalanceButton: Button
     private lateinit var sceneModeButton: Button
+    private lateinit var photoExtensionButton: Button
     private lateinit var videoModeButton: Button
     private lateinit var videoQualityButton: Button
     private lateinit var videoFpsButton: Button
@@ -110,6 +113,10 @@ class MainActivity : ComponentActivity() {
     private var proModeEnabled = false
     private var imageCapture: ImageCapture? = null
     private var camera: Camera? = null
+    private var extensionsManager: ExtensionsManager? = null
+    private var extensionsInitialized = false
+    private var supportedPhotoExtensions = mutableListOf<Int>()
+    private var selectedPhotoExtension: Int? = null
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private var gridEnabled = false
     private var timerSeconds = 0
@@ -325,6 +332,9 @@ class MainActivity : ComponentActivity() {
         proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
         sceneModeButton = smallButton("SCENE: AUTO") { cycleSceneMode() }
         proPanel.addView(sceneModeButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
+        photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
+        photoExtensionButton.isEnabled = false
+        proPanel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 4, 0, 4) })
         proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
             (view as Button).isEnabled = false
             view.text = "CAPTURING RAW…"
@@ -383,6 +393,8 @@ class MainActivity : ComponentActivity() {
                 }
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                selectedPhotoExtension = null
+                refreshPhotoExtensions()
                 startCamera()
             }
         }
@@ -861,6 +873,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cycleSceneMode() {
+        if (selectedPhotoExtension != null) {
+            Toast.makeText(this, "Turn off the photo effect before using hardware scene presets", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (videoMode) {
             Toast.makeText(this, "Scene presets are available in Photo mode only", Toast.LENGTH_SHORT).show()
             return
@@ -915,6 +931,86 @@ class MainActivity : ComponentActivity() {
         exposureLabel.text = "EV  ${if (evStops > 0) "+" else ""}%.1f".format(Locale.US, evStops)
     }
 
+    private fun cyclePhotoExtension() {
+        if (videoMode) {
+            Toast.makeText(this, "Photo effects are available in Photo mode only", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (proModeEnabled) {
+            Toast.makeText(this, "Turn off Pro controls before enabling a photo effect", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!extensionsInitialized) {
+            Toast.makeText(this, "Checking manufacturer camera effects…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (supportedPhotoExtensions.isEmpty()) {
+            Toast.makeText(this, "No OEM Bokeh, Night or HDR extension is exposed for this camera", Toast.LENGTH_LONG).show()
+            return
+        }
+        val currentIndex = selectedPhotoExtension?.let { supportedPhotoExtensions.indexOf(it) + 1 } ?: 0
+        selectedPhotoExtension = if (currentIndex >= supportedPhotoExtensions.size) null else supportedPhotoExtensions[currentIndex]
+        updatePhotoExtensionLabel()
+        startCamera()
+    }
+
+    private fun updatePhotoExtensionLabel() {
+        if (!::photoExtensionButton.isInitialized) return
+        val label = when (selectedPhotoExtension) {
+            ExtensionMode.BOKEH -> "BOKEH"
+            ExtensionMode.NIGHT -> "NIGHT"
+            ExtensionMode.HDR -> "HDR"
+            else -> "OFF"
+        }
+        photoExtensionButton.text = "PHOTO EFFECT: $label"
+        photoExtensionButton.contentDescription = when (selectedPhotoExtension) {
+            ExtensionMode.BOKEH -> "OEM camera Bokeh extension enabled"
+            ExtensionMode.NIGHT -> "OEM camera Night extension enabled"
+            ExtensionMode.HDR -> "OEM camera HDR extension enabled"
+            else -> "OEM camera effects disabled"
+        }
+        photoExtensionButton.isEnabled = extensionsInitialized && supportedPhotoExtensions.isNotEmpty() && !videoMode
+    }
+
+    private fun refreshPhotoExtensions() {
+        val manager = extensionsManager
+        if (manager == null) {
+            supportedPhotoExtensions.clear()
+            updatePhotoExtensionLabel()
+            return
+        }
+        supportedPhotoExtensions = listOf(ExtensionMode.BOKEH, ExtensionMode.NIGHT, ExtensionMode.HDR)
+            .filter { mode ->
+                try { manager.isExtensionAvailable(cameraSelector, mode) } catch (_: Exception) { false }
+            }.toMutableList()
+        if (selectedPhotoExtension != null && !supportedPhotoExtensions.contains(selectedPhotoExtension)) {
+            selectedPhotoExtension = null
+        }
+        updatePhotoExtensionLabel()
+    }
+
+    private fun initializePhotoExtensions(provider: ProcessCameraProvider) {
+        if (extensionsInitialized || extensionsManager != null) return
+        try {
+            val future = ExtensionsManager.getInstanceAsync(applicationContext, provider)
+            future.addListener({
+                try {
+                    extensionsManager = future.get()
+                    extensionsInitialized = true
+                    refreshPhotoExtensions()
+                } catch (_: Exception) {
+                    extensionsInitialized = true
+                    supportedPhotoExtensions.clear()
+                    updatePhotoExtensionLabel()
+                }
+            }, ContextCompat.getMainExecutor(this))
+        } catch (_: Exception) {
+            extensionsInitialized = true
+            supportedPhotoExtensions.clear()
+            updatePhotoExtensionLabel()
+        }
+    }
+
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
@@ -922,9 +1018,14 @@ class MainActivity : ComponentActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val provider = future.get()
+            initializePhotoExtensions(provider)
             val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
             try {
                 provider.unbindAll()
+                val activeSelector = if (!videoMode && selectedPhotoExtension != null) {
+                    val manager = extensionsManager
+                    if (manager == null) cameraSelector else manager.getExtensionEnabledCameraSelector(cameraSelector, selectedPhotoExtension!!)
+                } else cameraSelector
                 if (videoMode) {
                     imageCapture = null
                     val recorder = Recorder.Builder()
@@ -933,13 +1034,15 @@ class MainActivity : ComponentActivity() {
                     videoCapture = VideoCapture.withOutput(recorder)
                     camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
                     updateVideoCapabilities()
+                    photoExtensionButton.isEnabled = false
                 } else {
                     videoCapture = null
                     imageCapture = ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setFlashMode(ImageCapture.FLASH_MODE_OFF)
                         .build()
-                    camera = provider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                    camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
+                    refreshPhotoExtensions()
                 }
                 updateManualRanges()
                 if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) discoverRearLenses() else {
@@ -949,7 +1052,22 @@ class MainActivity : ComponentActivity() {
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
             } catch (e: Exception) {
-                Toast.makeText(this, "Unable to start camera: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                if (selectedPhotoExtension != null) {
+                    selectedPhotoExtension = null
+                    updatePhotoExtensionLabel()
+                    Toast.makeText(this, "OEM photo effect could not start; returning to standard camera", Toast.LENGTH_LONG).show()
+                    try {
+                        provider.unbindAll()
+                        val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+                        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setFlashMode(ImageCapture.FLASH_MODE_OFF).build()
+                        camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
+                        updateManualRanges()
+                    } catch (fallback: Exception) {
+                        Toast.makeText(this, "Unable to start camera: ${fallback.localizedMessage}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this, "Unable to start camera: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
             }
         }, ContextCompat.getMainExecutor(this))
     }
