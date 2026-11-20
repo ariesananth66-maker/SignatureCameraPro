@@ -1479,17 +1479,21 @@ class MainActivity : ComponentActivity() {
         } else if (timerSeconds == 0) {
             takePhoto()
         } else {
-            val delay = timerSeconds
-            captureButton.text = "..."
             captureButton.isEnabled = false
-            handler.postDelayed({
-                if (!isFinishing && !isDestroyed) {
-                    captureButton.isEnabled = true
-                    captureButton.text = "●"
-                    takePhoto()
-                }
-            }, delay * 1000L)
+            runCaptureCountdown(timerSeconds)
         }
+    }
+
+    private fun runCaptureCountdown(secondsRemaining: Int) {
+        if (isFinishing || isDestroyed) return
+        if (secondsRemaining <= 0) {
+            captureButton.text = "●"
+            captureButton.isEnabled = true
+            takePhoto()
+            return
+        }
+        captureButton.text = secondsRemaining.toString()
+        handler.postDelayed({ runCaptureCountdown(secondsRemaining - 1) }, 1000L)
     }
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
