@@ -1528,6 +1528,7 @@ class MainActivity : ComponentActivity() {
                     lensRow.removeAllViews()
                     lensRow.addView(TextView(this).apply { text = "FRONT CAMERA"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
                 }
+                camera?.cameraInfo?.zoomState?.value?.let { updateLensSelection(it.zoomRatio) }
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
             } catch (e: Exception) {
