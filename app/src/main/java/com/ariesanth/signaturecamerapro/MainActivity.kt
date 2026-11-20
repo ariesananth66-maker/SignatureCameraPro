@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoStabilizationButton: Button
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
+    private lateinit var flashStatusLabel: TextView
     private lateinit var screenFlashOverlay: View
     private var screenFlashHideRunnable: Runnable? = null
     private var screenFlashEnabled = true
@@ -531,9 +532,10 @@ class MainActivity : ComponentActivity() {
             elevation = 16f
         }
         val flip = Button(this).apply {
-            text = "FLIP"
+            text = "↻"
             isAllCaps = false
-            textSize = 13f
+            textSize = 28f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
             elevation = 8f
@@ -541,6 +543,7 @@ class MainActivity : ComponentActivity() {
             isFocusable = true
             minWidth = 0
             minHeight = 58
+            contentDescription = "Switch front and rear camera"
             setPadding(4, 0, 4, 0)
             setOnClickListener {
                 if (recording != null) {
@@ -576,9 +579,10 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { triggerCaptureAction() }
         }
         flashButton = Button(this).apply {
-            text = when (photoFlashMode) { ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"; ImageCapture.FLASH_MODE_ON -> "FLASH ON"; else -> "FLASH OFF" }
+            text = "⚡"
             isAllCaps = false
-            textSize = 11f
+            textSize = 24f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
             minWidth = 0
@@ -594,9 +598,9 @@ class MainActivity : ComponentActivity() {
                     return@setOnClickListener
                 }
                 if (videoMode) {
-                    val enabled = text != "TORCH ON"
+                    val enabled = contentDescription != "TORCH ON"
                     camera?.cameraControl?.enableTorch(enabled)
-                    text = if (enabled) "TORCH ON" else "TORCH OFF"
+                    syncFlashButtonLabel()
                 } else {
                     val image = imageCapture ?: return@setOnClickListener
                     photoFlashMode = when (photoFlashMode) {
@@ -606,15 +610,48 @@ class MainActivity : ComponentActivity() {
                     }
                     image.flashMode = photoFlashMode
                     getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("photo_flash_mode", photoFlashMode).apply()
-                    text = when (photoFlashMode) { ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"; ImageCapture.FLASH_MODE_ON -> "FLASH ON"; else -> "FLASH OFF" }
+                    syncFlashButtonLabel()
                 }
             }
         }
-        mainRow.setPadding(4, 8, 4, 8)
-        mainRow.addView(flip, LinearLayout.LayoutParams(0, 68, 1f).apply { setMargins(8, 0, 8, 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(92, 92))
+        fun sideControl(button: Button, caption: String, status: Boolean = false): LinearLayout {
+            val column = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                clipChildren = false
+                clipToPadding = false
+            }
+            button.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0xCC263243.toInt())
+                setStroke(1, 0x668FA6C4)
+            }
+            button.elevation = 5f
+            column.addView(button, LinearLayout.LayoutParams(58, 58))
+            val label = if (status) flashStatusLabel else TextView(this).apply {
+                text = caption
+                textSize = 10f
+                letterSpacing = 0.06f
+                setTextColor(0xFFD4DCE8.toInt())
+                gravity = Gravity.CENTER
+                maxLines = 1
+            }
+            column.addView(label, LinearLayout.LayoutParams(-1, 22))
+            return column
+        }
+        flashStatusLabel = TextView(this).apply {
+            textSize = 9f
+            letterSpacing = 0.02f
+            setTextColor(0xFFD4DCE8.toInt())
+            gravity = Gravity.CENTER
+            maxLines = 1
+        }
+        mainRow.setPadding(10, 8, 10, 4)
+        mainRow.gravity = Gravity.CENTER
+        mainRow.addView(sideControl(flip, "CAMERA"), LinearLayout.LayoutParams(0, 82, 1f).apply { setMargins(8, 0, 8, 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(88, 88).apply { setMargins(10, 0, 10, 0) })
         syncFlashButtonLabel()
-        mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 68, 1f).apply { setMargins(8, 0, 8, 0) })
+        mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, 82, 1f).apply { setMargins(8, 0, 8, 0) })
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
         videoRow.setPadding(18, 6, 18, 8)
         videoRow.gravity = Gravity.CENTER
@@ -694,14 +731,16 @@ class MainActivity : ComponentActivity() {
 
     private fun syncFlashButtonLabel() {
         if (!::flashButton.isInitialized) return
-        flashButton.text = when {
-            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> if (videoMode) "SELFIE LIGHT PHOTO" else if (screenFlashEnabled) "SCREEN FLASH ON" else "SCREEN FLASH OFF"
+        val state = when {
+            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> if (videoMode) "SELFIE LIGHT" else if (screenFlashEnabled) "SCREEN ON" else "SCREEN OFF"
             videoMode -> "TORCH OFF"
             photoFlashMode == ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"
             photoFlashMode == ImageCapture.FLASH_MODE_ON -> "FLASH ON"
             else -> "FLASH OFF"
         }
-        flashButton.contentDescription = flashButton.text.toString()
+        flashButton.text = "⚡"
+        flashButton.contentDescription = state
+        if (::flashStatusLabel.isInitialized) flashStatusLabel.text = state
     }
 
     private fun smallButton(label: String, action: (View) -> Unit) =
