@@ -574,6 +574,7 @@ class MainActivity : ComponentActivity() {
             contentDescription = "Switch front and rear camera"
             setPadding(4, 0, 4, 0)
             setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (recording != null) {
                     Toast.makeText(this@MainActivity, "Stop recording before switching cameras", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
@@ -605,7 +606,10 @@ class MainActivity : ComponentActivity() {
             minHeight = 92
             setPadding(4, 0, 4, 0)
             contentDescription = "Take photo or control video recording"
-            setOnClickListener { triggerCaptureAction() }
+            setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                triggerCaptureAction()
+            }
         }
         flashButton = Button(this).apply {
             text = "⚡"
@@ -618,6 +622,7 @@ class MainActivity : ComponentActivity() {
             minHeight = 58
             setPadding(4, 0, 4, 0)
             setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
                     if (!videoMode) {
                         screenFlashEnabled = !screenFlashEnabled
