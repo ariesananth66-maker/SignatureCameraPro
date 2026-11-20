@@ -232,7 +232,9 @@ class MainActivity : ComponentActivity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val state = camera?.cameraInfo?.zoomState?.value ?: return
-                    val ratio = state.minZoomRatio + (state.maxZoomRatio - state.minZoomRatio) * progress / 100f
+                    // Logarithmic zoom mapping gives finer control near 1x.
+                    val zoomSpan = (state.maxZoomRatio / state.minZoomRatio).coerceAtLeast(1f)
+                    val ratio = state.minZoomRatio * zoomSpan.pow(progress / 100f)
                     camera?.cameraControl?.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                 }
