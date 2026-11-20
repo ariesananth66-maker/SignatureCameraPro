@@ -40,7 +40,8 @@ jobs:
           AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
           "$AAPT" dump xmltree "$APK" AndroidManifest.xml > manifest-tree.txt
           grep -q "android.permission.CAMERA" manifest-tree.txt
-          if grep -Eq "android.permission.(INTERNET|RECORD_AUDIO|READ_CONTACTS|WRITE_CONTACTS|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_SMS|SEND_SMS)" manifest-tree.txt; then
+          grep -q "android.permission.RECORD_AUDIO" manifest-tree.txt
+          if grep -Eq "android.permission.(INTERNET|READ_CONTACTS|WRITE_CONTACTS|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_SMS|SEND_SMS)" manifest-tree.txt; then
             echo "Unexpected sensitive permission in APK manifest"; exit 1
           fi
           sha256sum "$APK" > "$APK.sha256"
