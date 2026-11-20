@@ -220,6 +220,7 @@ class MainActivity : ComponentActivity() {
                         .coerceIn(state.minZoomRatio, state.maxZoomRatio)
                     camera?.cameraControl?.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
+                    updateLensSelection(ratio)
                     return true
                 }
             })
@@ -289,6 +290,7 @@ class MainActivity : ComponentActivity() {
                     val ratio = state.minZoomRatio * zoomSpan.pow(progress / 100f)
                     camera?.cameraControl?.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
+                    updateLensSelection(ratio)
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -747,11 +749,17 @@ class MainActivity : ComponentActivity() {
         }
         sorted.forEach { (label, ratio) ->
             val button = Button(this)
-            button.text = label
-            button.textSize = 12f
+            button.text = label.replace("x", "×")
+            button.textSize = 13f
+            button.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
             button.isAllCaps = false
             button.setTextColor(android.graphics.Color.WHITE)
-            button.background = GradientDrawable().apply { cornerRadius = 14f; setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
+            button.tag = ratio
+            button.background = GradientDrawable().apply {
+                cornerRadius = 18f
+                setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF1677FF.toInt() else 0xCC263243.toInt())
+                setStroke(1, if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF70B5FF.toInt() else 0x668FA6C4)
+            }
             button.minWidth = 0
             button.minHeight = 48
             button.setPadding(8, 0, 8, 0)
@@ -771,13 +779,40 @@ class MainActivity : ComponentActivity() {
                 val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
                 val target = ratio.coerceIn(state.minZoomRatio, state.maxZoomRatio)
                 camera?.cameraControl?.setZoomRatio(target)
+                camera?.cameraControl?.setLinearZoom(
+                    ((kotlin.math.ln(target / state.minZoomRatio) /
+                        kotlin.math.ln(state.maxZoomRatio / state.minZoomRatio)).takeIf { it.isFinite() } ?: 0.0).toFloat().coerceIn(0f, 1f)
+                )
                 zoomLabel.text = "LENS VIEW  $label"
-                for (i in 0 until lensRow.childCount) {
-                    val child = lensRow.getChildAt(i) as? Button ?: continue
-                    child.background = GradientDrawable().apply { cornerRadius = 14f; setColor(if (child.text == label) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
-                }
+                updateLensSelection(target)
+                button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             }
             lensRow.addView(button, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
+        }
+    }
+
+    private fun updateLensSelection(zoomRatio: Float) {
+        if (!::lensRow.isInitialized) return
+        var nearest: Button? = null
+        var nearestDistance = Float.MAX_VALUE
+        for (i in 0 until lensRow.childCount) {
+            val button = lensRow.getChildAt(i) as? Button ?: continue
+            val preset = button.tag as? Float ?: continue
+            val distance = kotlin.math.abs(kotlin.math.ln(zoomRatio.coerceAtLeast(0.01f) / preset))
+            if (distance < nearestDistance) {
+                nearestDistance = distance
+                nearest = button
+            }
+        }
+        for (i in 0 until lensRow.childCount) {
+            val button = lensRow.getChildAt(i) as? Button ?: continue
+            val selected = button === nearest && nearestDistance < 0.22f
+            button.background = GradientDrawable().apply {
+                cornerRadius = 18f
+                setColor(if (selected) 0xFF1677FF.toInt() else 0xCC263243.toInt())
+                setStroke(1, if (selected) 0xFF70B5FF.toInt() else 0x668FA6C4)
+            }
+            button.isSelected = selected
         }
     }
 
