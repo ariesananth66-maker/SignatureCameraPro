@@ -2110,8 +2110,9 @@ class MainActivity : ComponentActivity() {
         hideScreenFlash()
         // Finalize any active recording when the camera screen leaves the foreground.
         if (recording != null) {
+            // CameraX finalizes asynchronously. Keep the external microphone alive
+            // until VideoRecordEvent.Finalize so the saved MP4 retains its audio tail.
             try { recording?.stop() } catch (_: Exception) { }
-            stopExternalAudio()
         }
         countdownRunnable?.let { handler.removeCallbacks(it) }
         countdownRunnable = null
