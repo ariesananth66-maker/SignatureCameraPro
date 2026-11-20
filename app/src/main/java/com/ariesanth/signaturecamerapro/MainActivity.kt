@@ -239,13 +239,17 @@ class MainActivity : ComponentActivity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(12, 10, 12, 10)
-            background = GradientDrawable().apply { cornerRadius = 22f; setColor(0xCC080B12.toInt()); setStroke(1, 0x44FFFFFF) }
+            setPadding(12, 14, 12, 10)
+            background = GradientDrawable().apply {
+                cornerRadius = 0f
+                colors = intArrayOf(0xDD05070B.toInt(), 0x0005070B)
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            }
         }
         val title = TextView(this).apply {
-            text = "MOTOROLA SIGNATURE"
-            textSize = 16f
-            letterSpacing = 0.12f
+            text = "SIGNATURE  •  CAMERA"
+            textSize = 13f
+            letterSpacing = 0.18f
             setTextColor(-1)
             gravity = Gravity.CENTER
         }
@@ -281,9 +285,13 @@ class MainActivity : ComponentActivity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(12, 10, 12, 16)
-            background = GradientDrawable().apply { cornerRadii = floatArrayOf(28f, 28f, 28f, 28f, 0f, 0f, 0f, 0f); setColor(0xF20A0E18.toInt()); setStroke(1, 0x33FFFFFF) }
-            elevation = 24f
+            setPadding(18, 12, 18, 10)
+            background = GradientDrawable().apply {
+                cornerRadii = floatArrayOf(30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f)
+                setColor(0xD9090B10.toInt())
+                setStroke(1, 0x44FFFFFF)
+            }
+            elevation = 18f
             clipChildren = false
             clipToPadding = false
         }
@@ -458,7 +466,6 @@ class MainActivity : ComponentActivity() {
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
         videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
         videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
-        panel.addView(videoRow)
         updateModeButtonAppearance()
         advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 4, 3, 4) })
         advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
@@ -473,11 +480,11 @@ class MainActivity : ComponentActivity() {
             elevation = 16f
         }
         val flip = Button(this).apply {
-            text = "FRONT / BACK"
+            text = "FLIP"
             isAllCaps = false
-            textSize = 12f
+            textSize = 13f
             setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = 18f; setColor(0xFF344054.toInt()) }
+            background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
             elevation = 8f
             isClickable = true
             isFocusable = true
@@ -500,15 +507,19 @@ class MainActivity : ComponentActivity() {
         }
         captureButton = Button(this).apply {
             text = "●"
-            textSize = 30f
+            textSize = 34f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = 36f; setColor(0xFF1677FF.toInt()) }
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0xFFF5F5F5.toInt())
+                setStroke(5, 0xFF9AA4B2.toInt())
+            }
             elevation = 10f
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 76
+            minHeight = 84
             setPadding(4, 0, 4, 0)
             contentDescription = "Take photo"
             contentDescription = "Take photo or control video recording"
@@ -517,9 +528,9 @@ class MainActivity : ComponentActivity() {
         flashButton = Button(this).apply {
             text = when (photoFlashMode) { ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"; ImageCapture.FLASH_MODE_ON -> "FLASH ON"; else -> "FLASH OFF" }
             isAllCaps = false
-            textSize = 12f
+            textSize = 11f
             setTextColor(android.graphics.Color.WHITE)
-            backgroundTintList = ColorStateList.valueOf(0xFF344054.toInt())
+            background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
             minWidth = 0
             minHeight = 58
             setPadding(4, 0, 4, 0)
@@ -550,11 +561,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         mainRow.setPadding(4, 8, 4, 8)
-        mainRow.addView(flip, LinearLayout.LayoutParams(0, 76, 1f).apply { setMargins(3, 0, 3, 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(0, 76, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(flip, LinearLayout.LayoutParams(0, 68, 1f).apply { setMargins(8, 0, 8, 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(84, 84))
         syncFlashButtonLabel()
-        mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 76, 1f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 68, 1f).apply { setMargins(8, 0, 8, 0) })
         panel.addView(mainRow)
+        panel.addView(videoRow)
+        videoRow.setPadding(18, 0, 18, 0)
+        videoRow.gravity = Gravity.CENTER
         val advancedScroll = ScrollView(this).apply {
             visibility = View.GONE
             isFillViewport = false
@@ -619,8 +633,12 @@ class MainActivity : ComponentActivity() {
             textSize = 15f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF475467.toInt()) }
-            elevation = 6f
+            background = GradientDrawable().apply {
+                cornerRadius = 24f
+                setColor(0xFF252A33.toInt())
+                setStroke(1, 0x44FFFFFF)
+            }
+            elevation = 2f
             isClickable = true
             isFocusable = true
             minWidth = 0
