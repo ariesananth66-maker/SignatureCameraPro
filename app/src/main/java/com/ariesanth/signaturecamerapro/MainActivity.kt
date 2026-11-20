@@ -466,8 +466,13 @@ class MainActivity : ComponentActivity() {
         }
         photoModeButton = smallButton("PHOTO") { setCameraMode(false) }
         videoModeButton = smallButton("VIDEO") { setCameraMode(true) }
-        videoQualityButton = smallButton("VIDEO QUALITY: FHD") { cycleVideoQuality() }
-        videoFpsButton = smallButton("FRAME RATE: 30 FPS") { cycleVideoFps() }
+        videoQualityButton = smallButton("VIDEO QUALITY: " + when (videoQuality) {
+            Quality.UHD -> "4K"
+            Quality.FHD -> "FHD"
+            Quality.HD -> "HD"
+            else -> "SD"
+        }) { cycleVideoQuality() }
+        videoFpsButton = smallButton("FRAME RATE: $videoFps FPS") { cycleVideoFps() }
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
         videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
         videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
