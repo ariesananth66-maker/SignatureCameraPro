@@ -566,7 +566,6 @@ class MainActivity : ComponentActivity() {
             minWidth = 0
             minHeight = 92
             setPadding(4, 0, 4, 0)
-            contentDescription = "Take photo"
             contentDescription = "Take photo or control video recording"
             setOnClickListener { triggerCaptureAction() }
         }
@@ -1086,16 +1085,28 @@ class MainActivity : ComponentActivity() {
                 video.selectTrack(vt); audio.selectTrack(at)
                 var vTime = video.sampleTime
                 var aTime = audio.sampleTime
+                var videoBuffer = java.nio.ByteBuffer.allocate(0)
+                var audioBuffer = java.nio.ByteBuffer.allocate(0)
                 while (vTime >= 0 || aTime >= 0) {
                     val useVideo = aTime < 0 || (vTime >= 0 && vTime <= aTime)
                     val ex = if (useVideo) video else audio
                     val sampleSize = ex.sampleSize
-                    if (sampleSize <= 0L || sampleSize > Int.MAX_VALUE) {
+                    if (sampleSize < 0L || sampleSize > Int.MAX_VALUE) {
                         if (useVideo) vTime = -1 else aTime = -1
                         continue
                     }
+                    if (sampleSize == 0L) {
+                        ex.advance()
+                        if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
+                        continue
+                    }
                     val size = sampleSize.toInt()
-                    val buf = java.nio.ByteBuffer.allocate(size)
+                    var buf = if (useVideo) videoBuffer else audioBuffer
+                    if (buf.capacity() < size) {
+                        buf = java.nio.ByteBuffer.allocate(size)
+                        if (useVideo) videoBuffer = buf else audioBuffer = buf
+                    }
+                    buf.clear()
                     val read = ex.readSampleData(buf, 0)
                     if (read < 0) {
                         if (useVideo) vTime = -1 else aTime = -1
