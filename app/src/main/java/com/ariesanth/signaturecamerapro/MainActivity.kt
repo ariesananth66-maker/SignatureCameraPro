@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var activeAudioRecorder: MediaRecorder? = null
+    private var micMeterRunnable: Runnable? = null
     private var activeVideoTempFile: File? = null
     private var activeAudioTempFile: File? = null
     private var micPeakAmplitude = 0.0
@@ -953,6 +954,7 @@ class MainActivity : ComponentActivity() {
             mic.setOutputFile(audioFile.absolutePath)
             mic.prepare()
             mic.start()
+            startMicrophoneMeter()
 
             audioLevelBar.progress = 0
             audioLevelLabel.text = "MIC  •  CAMCORDER SOURCE"
@@ -1009,7 +1011,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startMicrophoneMeter() {
+        micMeterRunnable?.let { handler.removeCallbacks(it) }
+        val meter = object : Runnable {
+            override fun run() {
+                val recorder = activeAudioRecorder ?: return
+                val amplitude = try { recorder.maxAmplitude.coerceIn(0, 32767) } catch (_: Exception) { 0 }
+                val dbfs = 20.0 * kotlin.math.log10((amplitude / 32767.0).coerceAtLeast(0.00001))
+                val level = (((dbfs + 60.0) / 60.0) * 100.0).toInt().coerceIn(0, 100)
+                if (::audioLevelBar.isInitialized) audioLevelBar.progress = level
+                if (::audioLevelLabel.isInitialized) audioLevelLabel.text = "MIC  •  LIVE INPUT  $level%"
+                handler.postDelayed(this, 120L)
+            }
+        }
+        micMeterRunnable = meter
+        handler.post(meter)
+    }
+
+    private fun stopMicrophoneMeter() {
+        micMeterRunnable?.let { handler.removeCallbacks(it) }
+        micMeterRunnable = null
+        if (::audioLevelBar.isInitialized) audioLevelBar.progress = 0
+    }
+
     private fun stopExternalAudio() {
+        stopMicrophoneMeter()
         val mic = activeAudioRecorder ?: return
         activeAudioRecorder = null
         try { mic.stop() } catch (_: Exception) { }
