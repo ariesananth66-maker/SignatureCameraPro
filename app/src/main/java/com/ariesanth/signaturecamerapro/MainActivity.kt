@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
     private lateinit var screenFlashOverlay: View
+    private var screenFlashHideRunnable: Runnable? = null
     private var screenFlashEnabled = true
     private var photoFlashMode = ImageCapture.FLASH_MODE_OFF
     private var videoCapture: VideoCapture<Recorder>? = null
@@ -1794,24 +1795,40 @@ class MainActivity : ComponentActivity() {
         val options = ImageCapture.OutputFileOptions.Builder(
             contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
         ).build()
-        if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA && screenFlashEnabled) {
+        val useScreenFlash = cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA && screenFlashEnabled
+        if (useScreenFlash) {
+            screenFlashHideRunnable?.let { handler.removeCallbacks(it) }
             screenFlashOverlay.visibility = View.VISIBLE
             screenFlashOverlay.alpha = 1f
-            handler.postDelayed({ screenFlashOverlay.visibility = View.GONE; screenFlashOverlay.alpha = 0f }, 350L)
+            // Keep the display illuminated through capture completion; this is only a failsafe.
+            screenFlashHideRunnable = Runnable { hideScreenFlash() }
+            handler.postDelayed(screenFlashHideRunnable!!, 1500L)
         }
         capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                if (useScreenFlash) hideScreenFlash()
                 if (::captureButton.isInitialized) captureButton.isEnabled = true
                 Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
             }
             override fun onError(exception: ImageCaptureException) {
+                if (useScreenFlash) hideScreenFlash()
                 if (::captureButton.isInitialized) captureButton.isEnabled = true
                 Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
             }
         })
     }
 
+    private fun hideScreenFlash() {
+        screenFlashHideRunnable?.let { handler.removeCallbacks(it) }
+        screenFlashHideRunnable = null
+        if (::screenFlashOverlay.isInitialized) {
+            screenFlashOverlay.alpha = 0f
+            screenFlashOverlay.visibility = View.GONE
+        }
+    }
+
     override fun onStop() {
+        hideScreenFlash()
         countdownRunnable?.let { handler.removeCallbacks(it) }
         countdownRunnable = null
         countdownActive = false
