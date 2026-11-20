@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity() {
     private var screenFlashHideRunnable: Runnable? = null
     private var screenFlashEnabled = true
     private var photoFlashMode = ImageCapture.FLASH_MODE_OFF
+    private var torchEnabled = false
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var activeAudioRecorder: MediaRecorder? = null
@@ -598,8 +599,9 @@ class MainActivity : ComponentActivity() {
                     return@setOnClickListener
                 }
                 if (videoMode) {
-                    val enabled = contentDescription != "TORCH ON"
+                    val enabled = !torchEnabled
                     camera?.cameraControl?.enableTorch(enabled)
+                    torchEnabled = enabled
                     syncFlashButtonLabel()
                 } else {
                     val image = imageCapture ?: return@setOnClickListener
@@ -733,7 +735,7 @@ class MainActivity : ComponentActivity() {
         if (!::flashButton.isInitialized) return
         val state = when {
             cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> if (videoMode) "SELFIE LIGHT" else if (screenFlashEnabled) "SCREEN ON" else "SCREEN OFF"
-            videoMode -> "TORCH OFF"
+            videoMode -> if (torchEnabled) "TORCH ON" else "TORCH OFF"
             photoFlashMode == ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"
             photoFlashMode == ImageCapture.FLASH_MODE_ON -> "FLASH ON"
             else -> "FLASH OFF"
@@ -1009,7 +1011,6 @@ class MainActivity : ComponentActivity() {
         }
         if (recording != null) {
             recording?.stop()
-            stopExternalAudio()
             captureButton.isEnabled = false
             captureButton.text = "SAVING…"
             return
@@ -1045,7 +1046,9 @@ class MainActivity : ComponentActivity() {
             ).start(ContextCompat.getMainExecutor(this)) { event ->
                 when (event) {
                     is VideoRecordEvent.Start -> {
-                        captureButton.text = "■ STOP"
+                        captureButton.text = "■"
+                        captureButton.contentDescription = "Stop video recording"
+                        audioLevelLabel.text = "MIC  •  RECORDING"
                         Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
                     }
                     is VideoRecordEvent.Status -> Unit
@@ -1055,7 +1058,8 @@ class MainActivity : ComponentActivity() {
                         if (event.hasError()) {
                             videoFile.delete(); audioFile.delete()
                             activeVideoTempFile = null; activeAudioTempFile = null
-                            captureButton.isEnabled = true; captureButton.text = "● REC"
+                            captureButton.isEnabled = true; captureButton.text = "●"
+                            captureButton.contentDescription = "Start video recording"
                             audioLevelLabel.text = "MIC  •  VIDEO ERROR"
                             Toast.makeText(this, "Video failed: ${event.error}", Toast.LENGTH_LONG).show()
                         } else {
@@ -1068,7 +1072,8 @@ class MainActivity : ComponentActivity() {
                                 finally { videoFile.delete(); audioFile.delete() }
                                 runOnUiThread {
                                     activeVideoTempFile = null; activeAudioTempFile = null
-                                    captureButton.isEnabled = true; captureButton.text = "● REC"
+                                    captureButton.isEnabled = true; captureButton.text = "●"
+                                    captureButton.contentDescription = "Start video recording"
                                     if (result != null) {
                                         audioLevelLabel.text = "MIC  •  CAMCORDER AAC"
                                         Toast.makeText(this, "Video saved with CAMCORDER audio", Toast.LENGTH_LONG).show()
@@ -1087,7 +1092,8 @@ class MainActivity : ComponentActivity() {
             videoFile.delete(); audioFile.delete()
             activeVideoTempFile = null; activeAudioTempFile = null
             recording = null
-            captureButton.isEnabled = true; captureButton.text = "● REC"
+            captureButton.isEnabled = true; captureButton.text = "●"
+            captureButton.contentDescription = "Start video recording"
             audioLevelLabel.text = "MIC  •  START FAILED"
             Toast.makeText(this, "Cannot start recording: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
