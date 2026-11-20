@@ -593,7 +593,7 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = dp(92)
+            minHeight = dp(88)
             setPadding(dp(4), 0, dp(4), 0)
             contentDescription = "Take photo or control video recording"
             setOnClickListener { view ->
@@ -866,7 +866,7 @@ class MainActivity : ComponentActivity() {
             }
             button.minWidth = 0
             button.minHeight = dp(44)
-            button.setPadding(8, 0, 8, 0)
+            button.setPadding(dp(8), 0, dp(8), 0)
             button.elevation = 3f
             // Never label a clamped digital zoom as a different physical lens preset.
             // Keep presets disabled when the active CameraX logical camera cannot reach them.
@@ -897,7 +897,7 @@ class MainActivity : ComponentActivity() {
                 updateLensSelection(ratio)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             }
-            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(3, 0, 3, 0) })
+            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         }
     }
 
