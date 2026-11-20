@@ -318,7 +318,10 @@ class MainActivity : ComponentActivity() {
             proModeEnabled = !proModeEnabled
             proPanel.visibility = if (proModeEnabled) View.VISIBLE else View.GONE
             (it as Button).text = if (proModeEnabled) "PRO ON" else "PRO CONTROLS"
-            if (!proModeEnabled) resetManualCapture()
+            if (proModeEnabled) {
+                manualFocusEnabled = manualFocusProgress > 0 && minimumFocusDistance > 0f
+                applyManualCapture()
+            } else resetManualCapture()
         }
         utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(utilityRow)
@@ -747,11 +750,11 @@ class MainActivity : ComponentActivity() {
             val activeCamera = camera ?: return
             Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
             manualFocusEnabled = false
-            manualFocusDiopters = 0f
-            awbModeIndex = 0
-            focusSlider.progress = 0
-            focusValue.text = "FOCUS  AUTO"
-            whiteBalanceButton.text = "WHITE BALANCE: AUTO"
+            manualFocusDiopters = minimumFocusDistance * (manualFocusProgress / 1000f)
+            focusSlider.progress = manualFocusProgress
+            focusValue.text = if (minimumFocusDistance > 0f && manualFocusProgress > 0) "FOCUS  %.2f D (SAVED)".format(Locale.US, manualFocusDiopters) else "FOCUS  AUTO"
+            val savedMode = supportedAwbModes.getOrElse(awbModeIndex) { CaptureRequest.CONTROL_AWB_MODE_AUTO }
+            whiteBalanceButton.text = "WHITE BALANCE: ${when (savedMode) { CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT -> "INCANDESCENT"; CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT -> "FLUORESCENT"; CaptureRequest.CONTROL_AWB_MODE_WARM_FLUORESCENT -> "WARM FLUORESCENT"; CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT -> "DAYLIGHT"; CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT -> "CLOUDY"; CaptureRequest.CONTROL_AWB_MODE_TWILIGHT -> "TWILIGHT"; CaptureRequest.CONTROL_AWB_MODE_SHADE -> "SHADE"; else -> "AUTO" }}"
         } catch (_: Exception) { }
     }
 
