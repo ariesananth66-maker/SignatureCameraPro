@@ -100,6 +100,11 @@ class MainActivity : ComponentActivity() {
     private var photoFlashMode = ImageCapture.FLASH_MODE_OFF
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
+    private var micPeakAmplitude = 0.0
+    private var micAmplitudeTotal = 0.0
+    private var micAmplitudeSamples = 0
+    private var micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
+    private var zoomLabelBeforeRecording: String? = null
     private var videoMode = false
     private var videoQuality = Quality.FHD
     private var videoFps = 30
@@ -885,6 +890,11 @@ class MainActivity : ComponentActivity() {
         val output = MediaStoreOutputOptions.Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
             .setContentValues(values)
             .build()
+        micPeakAmplitude = 0.0
+        micAmplitudeTotal = 0.0
+        micAmplitudeSamples = 0
+        micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
+        zoomLabelBeforeRecording = zoomLabel.text.toString()
         try {
             recording = activeVideo.output.prepareRecording(this, output)
                 .withAudioEnabled()
@@ -892,16 +902,42 @@ class MainActivity : ComponentActivity() {
                     when (event) {
                         is VideoRecordEvent.Start -> {
                             captureButton.text = "■ STOP"
+                            zoomLabel.text = "MIC LEVEL  •  MEASURING…"
                             Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
+                        }
+                        is VideoRecordEvent.Status -> {
+                            val audioStats = event.recordingStats.audioStats
+                            micAudioState = audioStats.audioState
+                            if (audioStats.hasAudio()) {
+                                val amplitude = audioStats.audioAmplitude.coerceIn(0.0, 1.0)
+                                micPeakAmplitude = maxOf(micPeakAmplitude, amplitude)
+                                micAmplitudeTotal += amplitude
+                                micAmplitudeSamples += 1
+                                zoomLabel.text = "MIC LEVEL  ${(amplitude * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
+                            } else {
+                                zoomLabel.text = "MIC AUDIO  •  NOT ACTIVE"
+                            }
                         }
                         is VideoRecordEvent.Finalize -> {
                             recording = null
                             captureButton.isEnabled = true
                             captureButton.text = "● REC"
+                            zoomLabelBeforeRecording?.let { zoomLabel.text = it }
+                            zoomLabelBeforeRecording = null
+                            val average = if (micAmplitudeSamples > 0) micAmplitudeTotal / micAmplitudeSamples else 0.0
+                            val stateLabel = when (micAudioState) {
+                                androidx.camera.video.AudioStats.AUDIO_STATE_ACTIVE -> "ACTIVE"
+                                androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> "MUTED"
+                                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> "SILENCED"
+                                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_ERROR -> "SOURCE ERROR"
+                                androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR -> "ENCODER ERROR"
+                                else -> "UNAVAILABLE"
+                            }
+                            val diagnostic = "Mic $stateLabel • avg ${(average * 100).toInt()}% • peak ${(micPeakAmplitude * 100).toInt()}%"
                             if (event.hasError()) {
-                                Toast.makeText(this, "Video failed: ${event.error}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this, "Video failed: ${event.error} • $diagnostic", Toast.LENGTH_LONG).show()
                             } else {
-                                Toast.makeText(this, "Video saved to Gallery", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this, "Video saved • $diagnostic", Toast.LENGTH_LONG).show()
                             }
                         }
                     }
