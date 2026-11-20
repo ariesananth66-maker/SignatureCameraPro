@@ -49,5 +49,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: signature-camera-pro-debug
-          path: |\n            app/build/outputs/apk/debug/app-debug.apk\n            app/build/outputs/apk/debug/app-debug.apk.sha256
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
