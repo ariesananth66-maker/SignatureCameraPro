@@ -52,6 +52,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var proPanel: LinearLayout
     private lateinit var isoValue: TextView
     private lateinit var shutterValue: TextView
+    private lateinit var isoSlider: SeekBar
+    private lateinit var shutterSlider: SeekBar
+    private var activeIsoMin = 100
+    private var activeIsoMax = 12800
+    private var activeShutterMinMs = 1
+    private var activeShutterMaxMs = 160
     private var manualIso = 400
     private var manualShutterMs = 10
     private var proModeEnabled = false
@@ -210,11 +216,11 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         isoValue = TextView(this).apply { text = "ISO 400"; textSize = 12f; setTextColor(-1) }
-        val isoSlider = SeekBar(this).apply {
+        isoSlider = SeekBar(this).apply {
             max = 100; progress = 25
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    manualIso = (100 + progress * 127).coerceIn(100, 12800)
+                    manualIso = (activeIsoMin + (activeIsoMax - activeIsoMin) * progress / 100f).toInt().coerceIn(activeIsoMin, activeIsoMax)
                     isoValue.text = "ISO $manualIso"
                     if (fromUser && proModeEnabled) applyManualCapture()
                 }
@@ -223,11 +229,11 @@ class MainActivity : ComponentActivity() {
             })
         }
         shutterValue = TextView(this).apply { text = "SHUTTER 10 ms"; textSize = 12f; setTextColor(-1) }
-        val shutterSlider = SeekBar(this).apply {
+        shutterSlider = SeekBar(this).apply {
             max = 100; progress = 6
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    manualShutterMs = (1 + progress * 1.59f).toInt().coerceIn(1, 160)
+                    manualShutterMs = (activeShutterMinMs + (activeShutterMaxMs - activeShutterMinMs) * progress / 100f).toInt().coerceIn(activeShutterMinMs, activeShutterMaxMs)
                     shutterValue.text = "SHUTTER ${manualShutterMs} ms"
                     if (fromUser && proModeEnabled) applyManualCapture()
                 }
@@ -548,6 +554,7 @@ class MainActivity : ComponentActivity() {
             try {
                 provider.unbindAll()
                 camera = provider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                updateManualRanges()
                 if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) discoverRearLenses() else {
                     lensRow.removeAllViews()
                     lensRow.addView(TextView(this).apply { text = "FRONT CAMERA"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
@@ -560,6 +567,33 @@ class MainActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun updateManualRanges() {
+        try {
+            val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+            val wantedFacing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
+                CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
+            val id = manager.cameraIdList.firstOrNull {
+                manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == wantedFacing
+            } ?: return
+            val characteristics = manager.getCameraCharacteristics(id)
+            characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)?.let {
+                activeIsoMin = it.lower
+                activeIsoMax = it.upper
+            }
+            characteristics.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)?.let {
+                activeShutterMinMs = maxOf(1, (it.lower / 1_000_000L).toInt())
+                activeShutterMaxMs = maxOf(activeShutterMinMs, (it.upper / 1_000_000L).toInt())
+            }
+            manualIso = manualIso.coerceIn(activeIsoMin, activeIsoMax)
+            manualShutterMs = manualShutterMs.coerceIn(activeShutterMinMs, activeShutterMaxMs)
+            isoValue.text = "ISO $manualIso  ($activeIsoMin–$activeIsoMax)"
+            shutterValue.text = "SHUTTER $manualShutterMs ms  (max ${activeShutterMaxMs} ms)"
+            isoSlider.progress = (((manualIso - activeIsoMin).toFloat() / (activeIsoMax - activeIsoMin).coerceAtLeast(1)) * 100).toInt().coerceIn(0, 100)
+            shutterSlider.progress = (((manualShutterMs - activeShutterMinMs).toFloat() / (activeShutterMaxMs - activeShutterMinMs).coerceAtLeast(1)) * 100).toInt().coerceIn(0, 100)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not read camera manual ranges", Toast.LENGTH_SHORT).show()
+        }
+    }
     private fun takePhoto() {
         val capture = imageCapture ?: return
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
