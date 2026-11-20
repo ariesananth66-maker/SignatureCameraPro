@@ -29,6 +29,9 @@ import android.provider.MediaStore
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.widget.BaseAdapter
+import android.widget.GridView
+import android.widget.ImageView
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -1178,10 +1181,7 @@ class MainActivity : ComponentActivity() {
                     MediaStore.MediaColumns.MIME_TYPE
                 )
                 contentResolver.query(
-                    collection,
-                    projection,
-                    "${nameColumn} LIKE ?",
-                    arrayOf("Signature_%"),
+                    collection, projection, "${nameColumn} LIKE ?", arrayOf("Signature_%"),
                     "${MediaStore.MediaColumns.DATE_ADDED} DESC"
                 )?.use { cursor ->
                     val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
@@ -1201,18 +1201,68 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "No SignatureCameraPro captures found yet", Toast.LENGTH_SHORT).show()
                 return
             }
-            AlertDialog.Builder(this)
-                .setTitle("RECENT CAPTURES")
-                .setItems(recent.map { it.title }.toTypedArray()) { _, which ->
-                    val item = recent[which]
-                    try {
-                        val view = Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, item.mime)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        startActivity(view)
-                    } catch (_: Exception) {
-                        Toast.makeText(this, "No app available to open this file", Toast.LENGTH_SHORT).show()
+            val grid = GridView(this).apply {
+                numColumns = 3
+                verticalSpacing = 8
+                horizontalSpacing = 8
+                stretchMode = GridView.STRETCH_COLUMN_WIDTH
+                setPadding(10, 10, 10, 10)
+                adapter = object : BaseAdapter() {
+                    override fun getCount() = recent.size
+                    override fun getItem(position: Int) = recent[position]
+                    override fun getItemId(position: Int) = position.toLong()
+                    override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                        val item = getItem(position)
+                        val cell = (convertView as? LinearLayout) ?: LinearLayout(this@MainActivity).apply {
+                            orientation = LinearLayout.VERTICAL
+                            gravity = Gravity.CENTER
+                            setPadding(4, 4, 4, 8)
+                            background = GradientDrawable().apply {
+                                cornerRadius = 12f
+                                setColor(0xFF202B3B.toInt())
+                            }
+                            addView(ImageView(this@MainActivity).apply {
+                                layoutParams = LinearLayout.LayoutParams(-1, 112)
+                                scaleType = ImageView.ScaleType.CENTER_CROP
+                                setImageResource(android.R.drawable.ic_menu_gallery)
+                            })
+                            addView(TextView(this@MainActivity).apply {
+                                textSize = 10f
+                                maxLines = 2
+                                gravity = Gravity.CENTER
+                                setTextColor(android.graphics.Color.WHITE)
+                                setPadding(3, 5, 3, 0)
+                            })
+                        }
+                        val thumb = cell.getChildAt(0) as ImageView
+                        val title = cell.getChildAt(1) as TextView
+                        thumb.tag = item.uri
+                        thumb.setImageResource(if (item.mime.startsWith("video")) android.R.drawable.ic_media_play else android.R.drawable.ic_menu_gallery)
+                        title.text = item.title
+                        if (android.os.Build.VERSION.SDK_INT >= 29) {
+                            Thread {
+                                val bitmap = try { contentResolver.loadThumbnail(item.uri, android.util.Size(320, 320), null) } catch (_: Exception) { null }
+                                if (bitmap != null) runOnUiThread {
+                                    if (thumb.tag == item.uri) thumb.setImageBitmap(bitmap)
+                                }
+                            }.start()
+                        }
+                        return cell
                     }
                 }
+                setOnItemClickListener { _, _, position, _ ->
+                    val item = recent[position]
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, item.mime)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    } catch (_: Exception) {
+                        Toast.makeText(this@MainActivity, "No app available to open this file", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            AlertDialog.Builder(this)
+                .setTitle("RECENT CAPTURES  •  ${recent.size}")
+                .setView(grid)
                 .setNegativeButton("CLOSE", null)
                 .show()
         } catch (e: Exception) {
