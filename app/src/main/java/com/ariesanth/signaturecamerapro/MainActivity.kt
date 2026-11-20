@@ -842,7 +842,15 @@ class MainActivity : ComponentActivity() {
     private fun discoverRearLenses() {
         lensRow.removeAllViews()
         val manager = getSystemService(CAMERA_SERVICE) as CameraManager
-        val rearId = manager.cameraIdList.firstOrNull { id -> manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK } ?: return
+        val rearIds = manager.cameraIdList.filter { id ->
+            manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
+        }
+        val rearId = rearIds.firstOrNull { id ->
+            val chars = manager.getCameraCharacteristics(id)
+            val caps = chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+            caps.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) &&
+                chars.physicalCameraIds.isNotEmpty()
+        } ?: rearIds.firstOrNull() ?: return
         val logical = manager.getCameraCharacteristics(rearId)
         val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: return
         val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return
@@ -1518,9 +1526,17 @@ class MainActivity : ComponentActivity() {
             } else {
                 CameraCharacteristics.LENS_FACING_BACK
             }
-            val cameraId = manager.cameraIdList.firstOrNull { id ->
+            val cameraIds = manager.cameraIdList.filter { id ->
                 manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == desiredFacing
-            } ?: return
+            }
+            // Prefer the logical multi-camera ID so its reported capabilities and
+            // physical-lens group match the camera currently bound by CameraX.
+            val cameraId = cameraIds.firstOrNull { id ->
+                val chars = manager.getCameraCharacteristics(id)
+                val caps = chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+                caps.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) &&
+                    chars.physicalCameraIds.isNotEmpty()
+            } ?: cameraIds.firstOrNull() ?: return
             val characteristics = manager.getCameraCharacteristics(cameraId)
             val noiseModes = characteristics.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
                 ?: intArrayOf()
