@@ -1250,6 +1250,8 @@ class MainActivity : ComponentActivity() {
                 var aTime = audio.sampleTime
                 var videoBuffer = java.nio.ByteBuffer.allocate(0)
                 var audioBuffer = java.nio.ByteBuffer.allocate(0)
+                var writtenVideoSamples = 0L
+                var writtenAudioSamples = 0L
                 while (vTime >= 0 || aTime >= 0) {
                     // Choose the next sample by its adjusted timestamp, not the raw per-file PTS.
                     val alignedVideoTimeUs = if (vTime >= 0) vTime + videoPtsOffsetUs else Long.MAX_VALUE
@@ -1284,9 +1286,12 @@ class MainActivity : ComponentActivity() {
                     val info = MediaCodec.BufferInfo().apply { set(0, read, ex.sampleTime + ptsOffsetUs, ex.sampleFlags) }
                     buf.position(0); buf.limit(read)
                     activeMuxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
+                    if (useVideo) writtenVideoSamples++ else writtenAudioSamples++
                     ex.advance()
                     if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
                 }
+                if (writtenVideoSamples == 0L) error("Video track contains no encoded samples")
+                if (writtenAudioSamples == 0L) error("Microphone track contains no encoded audio samples")
                 activeMuxer.stop()
             }
             muxer?.release(); muxer = null
