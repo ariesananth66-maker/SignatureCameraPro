@@ -779,10 +779,6 @@ class MainActivity : ComponentActivity() {
                 val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
                 val target = ratio.coerceIn(state.minZoomRatio, state.maxZoomRatio)
                 camera?.cameraControl?.setZoomRatio(target)
-                camera?.cameraControl?.setLinearZoom(
-                    ((kotlin.math.ln(target / state.minZoomRatio) /
-                        kotlin.math.ln(state.maxZoomRatio / state.minZoomRatio)).takeIf { it.isFinite() } ?: 0.0).toFloat().coerceIn(0f, 1f)
-                )
                 zoomLabel.text = "LENS VIEW  $label"
                 updateLensSelection(target)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
