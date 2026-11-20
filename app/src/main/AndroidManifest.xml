@@ -3,7 +3,8 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <uses-permission android:name="android.permission.CAMERA" />
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:label="Signature Camera Pro"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
