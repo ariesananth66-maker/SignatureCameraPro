@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
     private var torchEnabled = false
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
-    private var micPeakAmplitude = 0.0
+    private var micPeakAmplitude = -120.0
     private var micAmplitudeTotal = 0.0
     private var micAmplitudeSamples = 0
     private var micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
@@ -1139,7 +1139,7 @@ class MainActivity : ComponentActivity() {
             contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         ).setContentValues(values).build()
         try {
-            micPeakAmplitude = 0.0
+            micPeakAmplitude = -120.0
             micAmplitudeTotal = 0.0
             micAmplitudeSamples = 0
             micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
