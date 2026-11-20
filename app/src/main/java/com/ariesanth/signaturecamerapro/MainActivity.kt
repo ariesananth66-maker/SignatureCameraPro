@@ -127,6 +127,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.BLACK
         window.navigationBarColor = android.graphics.Color.BLACK
+        val cameraPrefs = getSharedPreferences("signature_camera_settings", MODE_PRIVATE)
+        gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
+        timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
         buildCameraUi()
         if (hasCameraPermission()) startCamera()
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
@@ -140,7 +143,7 @@ class MainActivity : ComponentActivity() {
         }
         root.addView(previewView, FrameLayout.LayoutParams(-1, -1))
         gridView = GridOverlay(this)
-        gridView.visibility = View.GONE
+        gridView.visibility = if (gridEnabled) View.VISIBLE else View.GONE
         root.addView(gridView, FrameLayout.LayoutParams(-1, -1))
         focusOverlay = FocusOverlay(this).apply {
             visibility = View.GONE
@@ -247,13 +250,17 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(-1, -2)
         }
-        val gridButton = smallButton("GRID OFF") {
+        val gridButton = smallButton(if (gridEnabled) "GRID ON" else "GRID OFF") {
             gridEnabled = !gridEnabled
             gridView.visibility = if (gridEnabled) View.VISIBLE else View.GONE
+            getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+                .putBoolean("grid_enabled", gridEnabled).apply()
             (it as Button).text = if (gridEnabled) "GRID ON" else "GRID OFF"
         }
-        val timerButton = smallButton("TIMER OFF") {
+        val timerButton = smallButton(if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s") {
             timerSeconds = when (timerSeconds) { 0 -> 3; 3 -> 10; else -> 0 }
+            getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+                .putInt("timer_seconds", timerSeconds).apply()
             (it as Button).text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
         }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
