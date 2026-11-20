@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var focusOverlay: FocusOverlay
     private lateinit var zoomLabel: TextView
     private lateinit var audioLevelLabel: TextView
+    private lateinit var audioLevelBar: android.widget.ProgressBar
     private lateinit var exposureLabel: TextView
     private lateinit var lensRow: LinearLayout
     private lateinit var proPanel: LinearLayout
@@ -293,6 +294,17 @@ class MainActivity : ComponentActivity() {
         top.addView(title)
         top.addView(zoomLabel)
         top.addView(audioLevelLabel)
+        audioLevelBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+            progressTintList = ColorStateList.valueOf(0xFF55D6A0.toInt())
+            progressBackgroundTintList = ColorStateList.valueOf(0x55777777)
+            contentDescription = "Live microphone input level"
+        }
+        top.addView(audioLevelBar, LinearLayout.LayoutParams(144, 5).apply {
+            topMargin = 3
+            bottomMargin = 3
+        })
         lensRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, 4, 0, 2) }
         top.addView(lensRow, LinearLayout.LayoutParams(-1, 44))
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
@@ -916,6 +928,10 @@ class MainActivity : ComponentActivity() {
                     when (event) {
                         is VideoRecordEvent.Start -> {
                             captureButton.text = "■ STOP"
+                            micPeakAmplitude = 0.0
+                            micAmplitudeTotal = 0.0
+                            micAmplitudeSamples = 0
+                            audioLevelBar.progress = 0
                             audioLevelLabel.text = "MIC  •  MEASURING…"
                             Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
                         }
@@ -927,8 +943,10 @@ class MainActivity : ComponentActivity() {
                                 micPeakAmplitude = maxOf(micPeakAmplitude, amplitude)
                                 micAmplitudeTotal += amplitude
                                 micAmplitudeSamples += 1
+                                audioLevelBar.progress = (amplitude * 100).toInt()
                                 audioLevelLabel.text = "MIC  ${(amplitude * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
                             } else {
+                                audioLevelBar.progress = 0
                                 audioLevelLabel.text = "MIC AUDIO  •  NOT ACTIVE"
                             }
                         }
@@ -946,6 +964,7 @@ class MainActivity : ComponentActivity() {
                                 else -> "UNAVAILABLE"
                             }
                             val diagnostic = "MIC $stateLabel  •  AVG ${(average * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
+                            audioLevelBar.progress = (average * 100).toInt()
                             audioLevelLabel.text = diagnostic
                             if (event.hasError()) {
                                 Toast.makeText(this, "Video failed: ${event.error} • $diagnostic", Toast.LENGTH_LONG).show()
