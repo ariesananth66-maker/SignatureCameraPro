@@ -223,7 +223,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(10, 0, 10, 0)
         }
-        exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, 46, 1f))
+        exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, 48, 1f))
         exposureRow.addView(smallButton("−  EV") { changeExposure(-1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
         exposureRow.addView(smallButton("+  EV") { changeExposure(1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(exposureRow)
@@ -244,7 +244,7 @@ class MainActivity : ComponentActivity() {
         }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
         val galleryButton = smallButton("RECENT") { showRecentCaptures() }
-        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
+        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(2, 0, 2, 0) })
         utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
         utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
         utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
@@ -254,7 +254,7 @@ class MainActivity : ComponentActivity() {
             (it as Button).text = if (proModeEnabled) "PRO ON" else "PRO CONTROLS"
             if (!proModeEnabled) resetManualCapture()
         }
-        utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
+        utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(utilityRow)
 
         proPanel = LinearLayout(this).apply {
@@ -455,7 +455,7 @@ class MainActivity : ComponentActivity() {
     private fun smallButton(label: String, action: (View) -> Unit) =
         Button(this).apply {
             text = label
-            textSize = 10f
+            textSize = 12f
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 14f; setColor(0xFF475467.toInt()) }
@@ -463,7 +463,9 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            setPadding(4, 0, 4, 0)
+            minHeight = 48
+            contentDescription = label
+            setPadding(8, 0, 8, 0)
             setOnClickListener { action(it) }
         }
 
@@ -501,7 +503,7 @@ class MainActivity : ComponentActivity() {
             button.setTextColor(android.graphics.Color.WHITE)
             button.background = GradientDrawable().apply { cornerRadius = 14f; setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
             button.minWidth = 0
-            button.minHeight = 38
+            button.minHeight = 48
             button.setPadding(8, 0, 8, 0)
             button.setOnClickListener {
                 if (cameraSelector != CameraSelector.DEFAULT_BACK_CAMERA) return@setOnClickListener
@@ -514,7 +516,7 @@ class MainActivity : ComponentActivity() {
                     child.background = GradientDrawable().apply { cornerRadius = 14f; setColor(if (child.text == label) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
                 }
             }
-            lensRow.addView(button, LinearLayout.LayoutParams(0, 40, 1f).apply { setMargins(3, 0, 3, 0) })
+            lensRow.addView(button, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
         }
     }
 
