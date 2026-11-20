@@ -1293,6 +1293,7 @@ class MainActivity : ComponentActivity() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    @OptIn(androidx.camera.video.ExperimentalAudioApi::class)
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
@@ -1309,6 +1310,8 @@ class MainActivity : ComponentActivity() {
                     imageCapture = null
                     val recorder = Recorder.Builder()
                         .setQualitySelector(QualitySelector.from(videoQuality, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)))
+                        // Process captured PCM before AAC encoding: modest gain with a soft limiter.
+                        .setAudioProcessors(listOf(VideoAudioGainProcessor()))
                         .build()
                     videoCapture = VideoCapture.withOutput(recorder)
                     camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
