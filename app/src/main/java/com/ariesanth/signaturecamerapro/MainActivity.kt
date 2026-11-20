@@ -598,6 +598,7 @@ class MainActivity : ComponentActivity() {
                 triggerCaptureAction()
             }
         }
+        updateCaptureButtonAppearance()
         flashButton = Button(this).apply {
             text = "⚡"
             isAllCaps = false
@@ -749,14 +750,40 @@ class MainActivity : ComponentActivity() {
         if (::audioLevelBar.isInitialized) {
             audioLevelBar.visibility = if (videoMode) View.VISIBLE else View.GONE
         }
-        if (::captureButton.isInitialized && recording == null) {
-            captureButton.background = GradientDrawable().apply {
+        updateCaptureButtonAppearance()
+    }
+
+    // A camera-style shutter: white ring for stills, red center for video,
+    // and a red stop-square while a recording is active.
+    private fun updateCaptureButtonAppearance() {
+        if (!::captureButton.isInitialized) return
+        val isRecording = recording != null
+        val outer = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(android.graphics.Color.TRANSPARENT)
+            setStroke(5, android.graphics.Color.WHITE)
+        }
+        val inner = GradientDrawable().apply {
+            if (isRecording) {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 6f
+                setColor(0xFFFF3B50.toInt())
+            } else {
                 shape = GradientDrawable.OVAL
-                setColor(if (videoMode) 0xFFE84B55.toInt() else 0xFFF5F5F5.toInt())
-                setStroke(5, if (videoMode) 0xFFFFB3B8.toInt() else 0xFF9AA4B2.toInt())
+                setColor(if (videoMode) 0xFFFF3B50.toInt() else android.graphics.Color.WHITE)
             }
-            captureButton.setTextColor(if (videoMode) android.graphics.Color.WHITE else 0xFF20242B.toInt())
-            captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
+        }
+        val inset = ((captureButton.width.takeIf { it > 0 } ?: 88) * if (isRecording) 0.30f else 0.22f).toInt()
+        captureButton.background = android.graphics.drawable.LayerDrawable(arrayOf(outer, inner)).apply {
+            setLayerInset(1, inset, inset, inset, inset)
+        }
+        // The drawable carries the shutter symbol; avoid the old low-contrast text glyph.
+        captureButton.text = ""
+        captureButton.setTextColor(android.graphics.Color.TRANSPARENT)
+        captureButton.contentDescription = when {
+            isRecording -> "Stop video recording"
+            videoMode -> "Start video recording"
+            else -> "Take photo"
         }
     }
 
@@ -1087,8 +1114,7 @@ class MainActivity : ComponentActivity() {
                             recordingTimer.base = android.os.SystemClock.elapsedRealtime()
                             recordingTimer.visibility = View.VISIBLE
                             recordingTimer.start()
-                            captureButton.text = "■"
-                            captureButton.contentDescription = "Stop video recording"
+                            updateCaptureButtonAppearance()
                             audioLevelLabel.text = "MIC  •  RECORDING"
                             Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
                         }
@@ -1112,6 +1138,7 @@ class MainActivity : ComponentActivity() {
                         }
                         is VideoRecordEvent.Finalize -> {
                             recording = null
+                            updateCaptureButtonAppearance()
                             recordingTimer.stop()
                             recordingTimer.visibility = View.GONE
                             audioLevelBar.progress = 0
@@ -1136,6 +1163,7 @@ class MainActivity : ComponentActivity() {
                 }
         } catch (e: Exception) {
             recording = null
+            updateCaptureButtonAppearance()
             if (::recordingTimer.isInitialized) {
                 recordingTimer.stop()
                 recordingTimer.visibility = View.GONE
