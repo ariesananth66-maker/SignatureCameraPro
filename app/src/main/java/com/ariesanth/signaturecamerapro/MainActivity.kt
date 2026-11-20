@@ -36,6 +36,15 @@ import android.widget.TextView
 import android.widget.Toast
 import android.graphics.drawable.GradientDrawable
 import androidx.activity.ComponentActivity
+import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.MediaStoreOutputOptions
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
+import android.util.Range
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
@@ -66,6 +75,18 @@ class MainActivity : ComponentActivity() {
     private lateinit var focusValue: TextView
     private lateinit var focusSlider: SeekBar
     private lateinit var whiteBalanceButton: Button
+    private lateinit var videoModeButton: Button
+    private lateinit var videoQualityButton: Button
+    private lateinit var videoFpsButton: Button
+    private lateinit var videoStabilizationButton: Button
+    private lateinit var captureButton: Button
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var recording: Recording? = null
+    private var videoMode = false
+    private var videoQuality = Quality.FHD
+    private var videoFps = 30
+    private var videoStabilizationEnabled = false
+    private var availableFpsRanges: Array<Range<Int>> = emptyArray()
     private var activeIsoMin = 100
     private var activeIsoMax = 12800
     private var activeShutterMinNs = 51_265L
@@ -292,6 +313,30 @@ class MainActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 8, 0, 0) })
         panel.addView(proPanel)
 
+        val videoRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, 5, 0, 5)
+        }
+        videoModeButton = smallButton("PHOTO MODE") {
+            if (recording != null) {
+                Toast.makeText(this, "Stop recording before changing mode", Toast.LENGTH_SHORT).show()
+                return@smallButton
+            }
+            videoMode = !videoMode
+            videoModeButton.text = if (videoMode) "VIDEO MODE" else "PHOTO MODE"
+            captureButton.text = if (videoMode) "● REC" else "●"
+            startCamera()
+        }
+        videoQualityButton = smallButton("FHD") { cycleVideoQuality() }
+        videoFpsButton = smallButton("30 FPS") { cycleVideoFps() }
+        videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
+        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 44, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoQualityButton, LinearLayout.LayoutParams(0, 44, 0.8f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoFpsButton, LinearLayout.LayoutParams(0, 44, 0.8f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(videoStabilizationButton, LinearLayout.LayoutParams(0, 44, 1.2f).apply { setMargins(3, 0, 3, 0) })
+        panel.addView(videoRow)
+
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -318,7 +363,7 @@ class MainActivity : ComponentActivity() {
                 startCamera()
             }
         }
-        val capture = Button(this).apply {
+        captureButton = Button(this).apply {
             text = "●"
             textSize = 30f
             isAllCaps = false
@@ -355,19 +400,25 @@ class MainActivity : ComponentActivity() {
             minHeight = 58
             setPadding(4, 0, 4, 0)
             setOnClickListener {
-                val image = imageCapture ?: return@setOnClickListener
                 if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
                     Toast.makeText(this@MainActivity, "Flash is not available on front camera", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                val enabled = image.flashMode != ImageCapture.FLASH_MODE_ON
-                image.flashMode = if (enabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
-                text = if (enabled) "FLASH ON" else "FLASH OFF"
+                if (videoMode) {
+                    val enabled = text != "TORCH ON"
+                    camera?.cameraControl?.enableTorch(enabled)
+                    text = if (enabled) "TORCH ON" else "TORCH OFF"
+                } else {
+                    val image = imageCapture ?: return@setOnClickListener
+                    val enabled = image.flashMode != ImageCapture.FLASH_MODE_ON
+                    image.flashMode = if (enabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+                    text = if (enabled) "FLASH ON" else "FLASH OFF"
+                }
             }
         }
         mainRow.setPadding(4, 8, 4, 8)
         mainRow.addView(flip, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
-        mainRow.addView(capture, LinearLayout.LayoutParams(0, 64, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(0, 64, 1.15f).apply { setMargins(3, 0, 3, 0) })
         mainRow.addView(flash, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
         val hint = TextView(this).apply {
@@ -587,6 +638,161 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) { }
     }
 
+    private fun toggleVideoRecording() {
+        val activeVideo = videoCapture ?: run {
+            Toast.makeText(this, "Video camera is not ready", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val current = recording
+        if (current != null) {
+            current.stop()
+            captureButton.isEnabled = false
+            captureButton.text = "SAVING…"
+            return
+        }
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val values = ContentValues().apply {
+            put(MediaStore.Video.Media.DISPLAY_NAME, "Signature_Video_$stamp.mp4")
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/SignatureCameraPro")
+            }
+        }
+        val output = MediaStoreOutputOptions.Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+            .setContentValues(values)
+            .build()
+        try {
+            recording = activeVideo.output.prepareRecording(this, output)
+                .start(ContextCompat.getMainExecutor(this)) { event ->
+                    when (event) {
+                        is VideoRecordEvent.Start -> {
+                            captureButton.text = "■ STOP"
+                            Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
+                        }
+                        is VideoRecordEvent.Finalize -> {
+                            recording = null
+                            captureButton.isEnabled = true
+                            captureButton.text = "● REC"
+                            if (event.hasError()) {
+                                Toast.makeText(this, "Video failed: ${event.error}", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(this, "Video saved to Gallery", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            recording = null
+            captureButton.isEnabled = true
+            captureButton.text = "● REC"
+            Toast.makeText(this, "Cannot start video: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun updateVideoCapabilities() {
+        val activeCamera = camera ?: return
+        try {
+            val supported = QualitySelector.getSupportedQualities(activeCamera.cameraInfo)
+            val chosen = when {
+                supported.contains(videoQuality) -> videoQuality
+                supported.contains(Quality.FHD) -> Quality.FHD
+                supported.contains(Quality.HD) -> Quality.HD
+                supported.contains(Quality.SD) -> Quality.SD
+                else -> supported.firstOrNull()
+            }
+            if (chosen != null) videoQuality = chosen
+            videoQualityButton.text = when (videoQuality) {
+                Quality.UHD -> "4K"
+                Quality.FHD -> "FHD"
+                Quality.HD -> "HD"
+                else -> "SD"
+            }
+            val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+            val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
+                CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
+            val id = manager.cameraIdList.firstOrNull {
+                manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == facing
+            }
+            availableFpsRanges = id?.let {
+                manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            } ?: emptyArray()
+            if (availableFpsRanges.none { it.lower == videoFps && it.upper == videoFps }) videoFps = 30
+            videoFpsButton.text = "$videoFps FPS"
+            val stabilizationModes = id?.let {
+                manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
+            } ?: intArrayOf(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+            videoStabilizationButton.isEnabled = stabilizationModes.contains(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON)
+            if (!videoStabilizationButton.isEnabled) {
+                videoStabilizationEnabled = false
+                videoStabilizationButton.text = "STABILIZATION N/A"
+            } else {
+                videoStabilizationButton.text = if (videoStabilizationEnabled) "STABILIZATION ON" else "STABILIZATION OFF"
+            }
+            applyVideoRequestOptions()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Video capabilities unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun cycleVideoQuality() {
+        val activeCamera = camera ?: return
+        val supported = QualitySelector.getSupportedQualities(activeCamera.cameraInfo)
+        val choices = listOf(Quality.UHD, Quality.FHD, Quality.HD, Quality.SD).filter { supported.contains(it) }
+        if (choices.isEmpty()) {
+            Toast.makeText(this, "No supported video quality found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentIndex = choices.indexOf(videoQuality).let { if (it < 0) 0 else it }
+        videoQuality = choices[(currentIndex + 1) % choices.size]
+        videoQualityButton.text = when (videoQuality) {
+            Quality.UHD -> "4K"
+            Quality.FHD -> "FHD"
+            Quality.HD -> "HD"
+            else -> "SD"
+        }
+        if (recording == null) startCamera()
+    }
+
+    private fun cycleVideoFps() {
+        val choices = listOf(30, 60).filter { fps -> availableFpsRanges.any { it.lower == fps && it.upper == fps } }
+        if (choices.isEmpty()) {
+            Toast.makeText(this, "30/60 FPS modes are not exposed by this camera", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val index = choices.indexOf(videoFps).let { if (it < 0) -1 else it }
+        videoFps = choices[(index + 1) % choices.size]
+        videoFpsButton.text = "$videoFps FPS"
+        applyVideoRequestOptions()
+    }
+
+    private fun toggleVideoStabilization() {
+        if (!videoStabilizationButton.isEnabled) {
+            Toast.makeText(this, "Video stabilization is not supported", Toast.LENGTH_SHORT).show()
+            return
+        }
+        videoStabilizationEnabled = !videoStabilizationEnabled
+        videoStabilizationButton.text = if (videoStabilizationEnabled) "STABILIZATION ON" else "STABILIZATION OFF"
+        applyVideoRequestOptions()
+    }
+
+    private fun applyVideoRequestOptions() {
+        val activeCamera = camera ?: return
+        if (!videoMode) return
+        try {
+            val builder = CaptureRequestOptions.Builder()
+            val fpsRange = availableFpsRanges.firstOrNull { it.lower == videoFps && it.upper == videoFps }
+            if (fpsRange != null) builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+            builder.setCaptureRequestOption(
+                CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                if (videoStabilizationEnabled) CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
+                else CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF
+            )
+            Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(builder.build())
+        } catch (e: Exception) {
+            Toast.makeText(this, "Video setting not applied: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun cycleWhiteBalance() {
         if (supportedAwbModes.isEmpty()) return
         awbModeIndex = (awbModeIndex + 1) % supportedAwbModes.size
@@ -624,13 +830,24 @@ class MainActivity : ComponentActivity() {
         future.addListener({
             val provider = future.get()
             val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                .setFlashMode(ImageCapture.FLASH_MODE_OFF)
-                .build()
             try {
                 provider.unbindAll()
-                camera = provider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                if (videoMode) {
+                    imageCapture = null
+                    val recorder = Recorder.Builder()
+                        .setQualitySelector(QualitySelector.from(videoQuality, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)))
+                        .build()
+                    videoCapture = VideoCapture.withOutput(recorder)
+                    camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
+                    updateVideoCapabilities()
+                } else {
+                    videoCapture = null
+                    imageCapture = ImageCapture.Builder()
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                        .setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                        .build()
+                    camera = provider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                }
                 updateManualRanges()
                 if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) discoverRearLenses() else {
                     lensRow.removeAllViews()
