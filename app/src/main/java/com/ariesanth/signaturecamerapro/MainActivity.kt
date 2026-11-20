@@ -341,8 +341,19 @@ class MainActivity : ComponentActivity() {
             topMargin = 3
             bottomMargin = 3
         })
-        lensRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, 4, 0, 2) }
-        top.addView(lensRow, LinearLayout.LayoutParams(-1, 44))
+        lensRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(6, 4, 6, 4)
+            background = GradientDrawable().apply {
+                cornerRadius = 24f
+                setColor(0x55232B38)
+                setStroke(1, 0x447F91A8)
+            }
+        }
+        top.addView(lensRow, LinearLayout.LayoutParams(-1, 52).apply {
+            setMargins(18, 5, 18, 2)
+        })
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
         val panel = LinearLayout(this).apply {
@@ -737,6 +748,13 @@ class MainActivity : ComponentActivity() {
         videoModeButton.alpha = if (videoMode) 1f else 0.78f
         photoModeButton.text = if (videoMode) "PHOTO" else "●  PHOTO"
         videoModeButton.text = if (videoMode) "●  VIDEO" else "VIDEO"
+        // The live mic meter belongs to video capture; keep photo mode's viewfinder uncluttered.
+        if (::audioLevelLabel.isInitialized) {
+            audioLevelLabel.visibility = if (videoMode) View.VISIBLE else View.GONE
+        }
+        if (::audioLevelBar.isInitialized) {
+            audioLevelBar.visibility = if (videoMode) View.VISIBLE else View.GONE
+        }
         if (::captureButton.isInitialized && recording == null) {
             captureButton.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -823,8 +841,9 @@ class MainActivity : ComponentActivity() {
                 setStroke(1, if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF70B5FF.toInt() else 0x668FA6C4)
             }
             button.minWidth = 0
-            button.minHeight = 48
+            button.minHeight = 44
             button.setPadding(8, 0, 8, 0)
+            button.elevation = 3f
             // OEM extensions can change the active camera pipeline; avoid presenting
             // optical-lens presets as reliable while a vendor effect is active.
             button.isEnabled = selectedPhotoExtension == null
