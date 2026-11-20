@@ -367,6 +367,10 @@ class MainActivity : ComponentActivity() {
             minHeight = 58
             setPadding(4, 0, 4, 0)
             setOnClickListener {
+                if (recording != null) {
+                    Toast.makeText(this@MainActivity, "Stop recording before switching cameras", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
                 startCamera()
