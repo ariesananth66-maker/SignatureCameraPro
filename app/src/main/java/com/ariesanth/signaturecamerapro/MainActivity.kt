@@ -1540,19 +1540,14 @@ class MainActivity : ComponentActivity() {
             val characteristics = manager.getCameraCharacteristics(cameraId)
             val noiseModes = characteristics.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
                 ?: intArrayOf()
-            val edgeModes = characteristics.get(CameraCharacteristics.EDGE_AVAILABLE_EDGE_MODES)
-                ?: intArrayOf()
             val extender = Camera2Interop.Extender(builder)
+            // Prefer the HAL's high-quality denoiser when explicitly supported.
+            // Leave edge enhancement to the vendor's tuned default: forcing HQ
+            // sharpening can exaggerate chroma/luma noise in dim indoor scenes.
             if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
                 extender.setCaptureRequestOption(
                     CaptureRequest.NOISE_REDUCTION_MODE,
                     CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                )
-            }
-            if (edgeModes.contains(CaptureRequest.EDGE_MODE_HIGH_QUALITY)) {
-                extender.setCaptureRequestOption(
-                    CaptureRequest.EDGE_MODE,
-                    CaptureRequest.EDGE_MODE_HIGH_QUALITY
                 )
             }
         } catch (_: Exception) {
