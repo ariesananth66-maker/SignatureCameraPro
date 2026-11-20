@@ -1566,6 +1566,11 @@ class MainActivity : ComponentActivity() {
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
+        if (::captureButton.isInitialized && !captureButton.isEnabled) return
+        if (::captureButton.isInitialized) {
+            captureButton.isEnabled = false
+            captureButton.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
+        }
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "Signature_$timestamp.jpg")
@@ -1579,9 +1584,11 @@ class MainActivity : ComponentActivity() {
         ).build()
         capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                if (::captureButton.isInitialized) captureButton.isEnabled = true
                 Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
             }
             override fun onError(exception: ImageCaptureException) {
+                if (::captureButton.isInitialized) captureButton.isEnabled = true
                 Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
             }
         })
