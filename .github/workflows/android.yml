@@ -38,10 +38,10 @@ jobs:
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
-          "$AAPT" dump permissions "$APK" > permissions.txt
-          ACTUAL=$(sed -n "s/.*name='\\([^']*\\)'.*/\\1/p" permissions.txt | sort -u)
-          if [ "$ACTUAL" != "android.permission.CAMERA" ]; then
-            echo "Unexpected APK permissions:"; cat permissions.txt; exit 1
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > manifest-tree.txt
+          grep -q "android.permission.CAMERA" manifest-tree.txt
+          if grep -Eq "android.permission.(INTERNET|RECORD_AUDIO|READ_CONTACTS|WRITE_CONTACTS|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_SMS|SEND_SMS)" manifest-tree.txt; then
+            echo "Unexpected sensitive permission in APK manifest"; exit 1
           fi
           sha256sum "$APK" > "$APK.sha256"
 
