@@ -709,10 +709,20 @@ class MainActivity : ComponentActivity() {
             addView(advancedPanel)
         }
         panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, (260 * resources.displayMetrics.density).toInt()))
+        fun positionLensRailAboveDock() {
+            // Keep the lens selector completely clear of the dock in both collapsed
+            // and expanded states; a fixed margin caused it to sit behind settings.
+            panel.post {
+                val params = lensRow.layoutParams as? FrameLayout.LayoutParams ?: return@post
+                params.bottomMargin = panel.height + dp(8)
+                lensRow.layoutParams = params
+            }
+        }
         val advancedToggleButton = smallButton("⚙  CAMERA SETTINGS") {
             val show = advancedScroll.visibility != View.VISIBLE
             advancedScroll.visibility = if (show) View.VISIBLE else View.GONE
             (it as Button).text = if (show) "⌃  HIDE SETTINGS" else "⚙  CAMERA SETTINGS"
+            positionLensRailAboveDock()
         }
         panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(4), dp(4), dp(2)) })
         val hint = TextView(this).apply {
@@ -723,11 +733,14 @@ class MainActivity : ComponentActivity() {
         }
         panel.addView(hint)
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
-        // Ensure the floating lens rail stays above the shutter dock.
-        lensRow.bringToFront()
-        panel.bringToFront()
-        lensRow.bringToFront()
+        // Recalculate after the dock has been measured so the floating lens rail
+        // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
+        positionLensRailAboveDock()
+        panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            positionLensRailAboveDock()
+        }
+        lensRow.bringToFront()
     }
 
     private fun setCameraMode(enableVideo: Boolean) {
