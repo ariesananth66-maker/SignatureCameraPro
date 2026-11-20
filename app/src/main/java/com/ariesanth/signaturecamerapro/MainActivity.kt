@@ -118,6 +118,9 @@ class MainActivity : ComponentActivity() {
     private var micMeterRunnable: Runnable? = null
     private var activeVideoTempFile: File? = null
     private var activeAudioTempFile: File? = null
+    // Monotonic start markers preserve the real offset between independent encoders.
+    private var activeAudioStartElapsedNs = 0L
+    private var activeVideoStartElapsedNs = 0L
     private var micPeakAmplitude = 0.0
     private var micAmplitudeTotal = 0.0
     private var micAmplitudeSamples = 0
@@ -1050,6 +1053,8 @@ class MainActivity : ComponentActivity() {
             mic.setAudioEncodingBitRate(192000)
             mic.setOutputFile(audioFile.absolutePath)
             mic.prepare()
+            activeAudioStartElapsedNs = android.os.SystemClock.elapsedRealtimeNanos()
+            activeVideoStartElapsedNs = 0L
             mic.start()
             micPeakAmplitude = 0.0
             micAmplitudeTotal = 0.0
@@ -1064,6 +1069,7 @@ class MainActivity : ComponentActivity() {
             ).start(ContextCompat.getMainExecutor(this)) { event ->
                 when (event) {
                     is VideoRecordEvent.Start -> {
+                        activeVideoStartElapsedNs = android.os.SystemClock.elapsedRealtimeNanos()
                         recordingTimer.base = android.os.SystemClock.elapsedRealtime()
                         recordingTimer.visibility = View.VISIBLE
                         recordingTimer.start()
@@ -1081,6 +1087,7 @@ class MainActivity : ComponentActivity() {
                         if (event.hasError()) {
                             videoFile.delete(); audioFile.delete()
                             activeVideoTempFile = null; activeAudioTempFile = null
+                            activeAudioStartElapsedNs = 0L; activeVideoStartElapsedNs = 0L
                             captureButton.isEnabled = true; captureButton.text = "●"
                             captureButton.contentDescription = "Start video recording"
                             audioLevelLabel.text = "MIC  •  VIDEO ERROR"
@@ -1095,6 +1102,7 @@ class MainActivity : ComponentActivity() {
                                 finally { videoFile.delete(); audioFile.delete() }
                                 runOnUiThread {
                                     activeVideoTempFile = null; activeAudioTempFile = null
+                                    activeAudioStartElapsedNs = 0L; activeVideoStartElapsedNs = 0L
                                     captureButton.isEnabled = true; captureButton.text = "●"
                                     captureButton.contentDescription = "Start video recording"
                                     if (result != null) {
@@ -1118,6 +1126,7 @@ class MainActivity : ComponentActivity() {
             }
             videoFile.delete(); audioFile.delete()
             activeVideoTempFile = null; activeAudioTempFile = null
+            activeAudioStartElapsedNs = 0L; activeVideoStartElapsedNs = 0L
             recording = null
             captureButton.isEnabled = true; captureButton.text = "●"
             captureButton.contentDescription = "Start video recording"
@@ -1183,6 +1192,13 @@ class MainActivity : ComponentActivity() {
             audio.setDataSource(audioFile.absolutePath)
             val vt = (0 until video.trackCount).firstOrNull { video.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true } ?: error("Video track missing")
             val at = (0 until audio.trackCount).firstOrNull { audio.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true } ?: error("Audio track missing")
+            // CameraX and MediaRecorder have independent PTS origins; align them to one monotonic timeline.
+            val audioStartNs = activeAudioStartElapsedNs
+            val videoStartNs = activeVideoStartElapsedNs
+            if (audioStartNs <= 0L || videoStartNs <= 0L) error("Recording start timestamps unavailable")
+            val commonStartNs = minOf(audioStartNs, videoStartNs)
+            val audioPtsOffsetUs = (audioStartNs - commonStartNs) / 1_000L
+            val videoPtsOffsetUs = (videoStartNs - commonStartNs) / 1_000L
             val values = ContentValues().apply {
                 put(MediaStore.Video.Media.DISPLAY_NAME, name)
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -1234,7 +1250,8 @@ class MainActivity : ComponentActivity() {
                         if (useVideo) vTime = -1 else aTime = -1
                         continue
                     }
-                    val info = MediaCodec.BufferInfo().apply { set(0, read, ex.sampleTime, ex.sampleFlags) }
+                    val ptsOffsetUs = if (useVideo) videoPtsOffsetUs else audioPtsOffsetUs
+                    val info = MediaCodec.BufferInfo().apply { set(0, read, ex.sampleTime + ptsOffsetUs, ex.sampleFlags) }
                     buf.position(0); buf.limit(read)
                     activeMuxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
                     ex.advance()
