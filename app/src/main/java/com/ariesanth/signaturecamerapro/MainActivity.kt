@@ -430,7 +430,9 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "Stop recording before changing mode", Toast.LENGTH_SHORT).show()
                 return@smallButton
             }
+            camera?.cameraControl?.enableTorch(false)
             videoMode = !videoMode
+            syncFlashButtonLabel()
             videoModeButton.text = if (videoMode) "VIDEO MODE" else "PHOTO MODE"
             captureButton.text = if (videoMode) "● REC" else "●"
             startCamera()
@@ -469,8 +471,10 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this@MainActivity, "Stop recording before switching cameras", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
+                camera?.cameraControl?.enableTorch(false)
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                syncFlashButtonLabel()
                 selectedPhotoExtension = null
                 refreshPhotoExtensions()
                 startCamera()
@@ -526,6 +530,7 @@ class MainActivity : ComponentActivity() {
         mainRow.setPadding(4, 8, 4, 8)
         mainRow.addView(flip, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         mainRow.addView(captureButton, LinearLayout.LayoutParams(0, 64, 1.15f).apply { setMargins(3, 0, 3, 0) })
+        syncFlashButtonLabel()
         mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
         val hint = TextView(this).apply {
@@ -538,6 +543,18 @@ class MainActivity : ComponentActivity() {
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         panel.bringToFront()
         setContentView(root)
+    }
+
+    private fun syncFlashButtonLabel() {
+        if (!::flashButton.isInitialized) return
+        flashButton.text = when {
+            cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA -> "NO FLASH"
+            videoMode -> "TORCH OFF"
+            photoFlashMode == ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"
+            photoFlashMode == ImageCapture.FLASH_MODE_ON -> "FLASH ON"
+            else -> "FLASH OFF"
+        }
+        flashButton.contentDescription = flashButton.text.toString()
     }
 
     private fun smallButton(label: String, action: (View) -> Unit) =
