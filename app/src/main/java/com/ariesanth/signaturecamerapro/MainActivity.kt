@@ -121,6 +121,7 @@ class MainActivity : ComponentActivity() {
     private var micAmplitudeTotal = 0.0
     private var micAmplitudeSamples = 0
     private var micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
+    private var lastMicLevelSummary = "MIC LEVEL UNMEASURED"
     private var videoMode = false
     private var videoQuality = Quality.FHD
     private var videoFps = 30
@@ -1038,6 +1039,10 @@ class MainActivity : ComponentActivity() {
             mic.setOutputFile(audioFile.absolutePath)
             mic.prepare()
             mic.start()
+            micPeakAmplitude = 0.0
+            micAmplitudeTotal = 0.0
+            micAmplitudeSamples = 0
+            lastMicLevelSummary = "MIC LEVEL MEASURING"
             startMicrophoneMeter()
 
             audioLevelBar.progress = 0
@@ -1076,8 +1081,8 @@ class MainActivity : ComponentActivity() {
                                     captureButton.isEnabled = true; captureButton.text = "●"
                                     captureButton.contentDescription = "Start video recording"
                                     if (result != null) {
-                                        audioLevelLabel.text = "MIC  •  CAMCORDER AAC"
-                                        Toast.makeText(this, "Video saved with CAMCORDER audio", Toast.LENGTH_LONG).show()
+                                        audioLevelLabel.text = lastMicLevelSummary
+                                        Toast.makeText(this, "Video saved • CAMCORDER AAC", Toast.LENGTH_LONG).show()
                                     } else {
                                         audioLevelLabel.text = "MIC  •  MUX ERROR"
                                         Toast.makeText(this, "Audio/video combine failed: ${problem?.localizedMessage}", Toast.LENGTH_LONG).show()
@@ -1106,7 +1111,13 @@ class MainActivity : ComponentActivity() {
             override fun run() {
                 val recorder = activeAudioRecorder ?: return
                 val amplitude = try { recorder.maxAmplitude.coerceIn(0, 32767) } catch (_: Exception) { 0 }
-                val dbfs = 20.0 * kotlin.math.log10((amplitude / 32767.0).coerceAtLeast(0.00001))
+                val normalizedAmplitude = amplitude / 32767.0
+                val dbfs = 20.0 * kotlin.math.log10(normalizedAmplitude.coerceAtLeast(0.00001))
+                if (amplitude > 0) {
+                    micPeakAmplitude = maxOf(micPeakAmplitude, dbfs)
+                    micAmplitudeTotal += dbfs
+                    micAmplitudeSamples++
+                }
                 val level = (((dbfs + 60.0) / 60.0) * 100.0).toInt().coerceIn(0, 100)
                 if (::audioLevelBar.isInitialized) audioLevelBar.progress = level
                 if (::audioLevelLabel.isInitialized) audioLevelLabel.text = "MIC  •  LIVE INPUT  $level%"
@@ -1125,6 +1136,12 @@ class MainActivity : ComponentActivity() {
 
     private fun stopExternalAudio() {
         stopMicrophoneMeter()
+        if (micAmplitudeSamples > 0) {
+            val averageDbfs = micAmplitudeTotal / micAmplitudeSamples
+            lastMicLevelSummary = "MIC PEAK " + micPeakAmplitude.toInt() + " dBFS  •  AVG " + averageDbfs.toInt() + " dBFS"
+        } else {
+            lastMicLevelSummary = "MIC INPUT NOT DETECTED"
+        }
         val mic = activeAudioRecorder ?: return
         activeAudioRecorder = null
         try { mic.stop() } catch (_: Exception) { }
