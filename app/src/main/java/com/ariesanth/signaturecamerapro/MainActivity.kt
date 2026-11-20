@@ -1001,6 +1001,7 @@ class MainActivity : ComponentActivity() {
         val point: MeteringPoint = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
             .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+        previewView.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
         focusOverlay.showAt(x, y)
         val focusFuture = activeCamera.cameraControl.startFocusAndMetering(action)
         focusFuture.addListener({
