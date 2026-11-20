@@ -442,22 +442,8 @@ class MainActivity : ComponentActivity() {
             minHeight = 64
             setPadding(4, 0, 4, 0)
             contentDescription = "Take photo"
-            setOnClickListener {
-                if (videoMode) {
-                    toggleVideoRecording()
-                } else if (timerSeconds == 0) {
-                    takePhoto()
-                } else {
-                    val delay = timerSeconds
-                    text = "..."
-                    isEnabled = false
-                    handler.postDelayed({
-                        isEnabled = true
-                        text = "●"
-                        takePhoto()
-                    }, delay * 1000L)
-                }
-            }
+            contentDescription = "Take photo or control video recording"
+            setOnClickListener { triggerCaptureAction() }
         }
         val flash = Button(this).apply {
             text = "FLASH OFF"
@@ -1484,6 +1470,36 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Gallery unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun triggerCaptureAction() {
+        if (!::captureButton.isInitialized || !captureButton.isEnabled) return
+        if (videoMode) {
+            toggleVideoRecording()
+        } else if (timerSeconds == 0) {
+            takePhoto()
+        } else {
+            val delay = timerSeconds
+            captureButton.text = "..."
+            captureButton.isEnabled = false
+            handler.postDelayed({
+                if (!isFinishing && !isDestroyed) {
+                    captureButton.isEnabled = true
+                    captureButton.text = "●"
+                    takePhoto()
+                }
+            }, delay * 1000L)
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if ((keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP ||
+                keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) &&
+            event.repeatCount == 0 && ::captureButton.isInitialized) {
+            triggerCaptureAction()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun takePhoto() {
