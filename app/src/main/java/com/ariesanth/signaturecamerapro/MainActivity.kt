@@ -2083,22 +2083,26 @@ class MainActivity : ComponentActivity() {
             screenFlashHideRunnable?.let { handler.removeCallbacks(it) }
             screenFlashOverlay.visibility = View.VISIBLE
             screenFlashOverlay.alpha = 1f
-            // Keep the display illuminated through capture completion; this is only a failsafe.
+            // Allow one display refresh before requesting exposure so the panel
+            // is already bright when the front camera captures the frame.
             screenFlashHideRunnable = Runnable { hideScreenFlash() }
-            handler.postDelayed(screenFlashHideRunnable!!, 1500L)
+            handler.postDelayed(screenFlashHideRunnable!!, 2500L)
         }
-        capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
-            override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                if (useScreenFlash) hideScreenFlash()
-                if (::captureButton.isInitialized) captureButton.isEnabled = true
-                Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
-            }
-            override fun onError(exception: ImageCaptureException) {
-                if (useScreenFlash) hideScreenFlash()
-                if (::captureButton.isInitialized) captureButton.isEnabled = true
-                Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
-            }
-        })
+        val captureAction = Runnable {
+            capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    if (useScreenFlash) hideScreenFlash()
+                    if (::captureButton.isInitialized) captureButton.isEnabled = true
+                    Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
+                }
+                override fun onError(exception: ImageCaptureException) {
+                    if (useScreenFlash) hideScreenFlash()
+                    if (::captureButton.isInitialized) captureButton.isEnabled = true
+                    Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
+                }
+            })
+        }
+        if (useScreenFlash) handler.postDelayed(captureAction, 120L) else captureAction.run()
     }
 
     // A low-level white viewfinder fill gives the front camera preview a
@@ -2108,7 +2112,7 @@ class MainActivity : ComponentActivity() {
         val showPreviewFill = cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA &&
             !videoMode && screenFlashEnabled
         screenFlashOverlay.animate().cancel()
-        screenFlashOverlay.alpha = if (showPreviewFill) 0.22f else 0f
+        screenFlashOverlay.alpha = if (showPreviewFill) 0.30f else 0f
         screenFlashOverlay.visibility = if (showPreviewFill) View.VISIBLE else View.GONE
     }
 
