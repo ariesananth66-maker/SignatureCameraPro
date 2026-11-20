@@ -386,8 +386,11 @@ class MainActivity : ComponentActivity() {
             setPadding(4, 0, 4, 0)
             contentDescription = "Take photo"
             setOnClickListener {
-                if (timerSeconds == 0) takePhoto()
-                else {
+                if (videoMode) {
+                    toggleVideoRecording()
+                } else if (timerSeconds == 0) {
+                    takePhoto()
+                } else {
                     val delay = timerSeconds
                     text = "..."
                     isEnabled = false
