@@ -630,8 +630,15 @@ class MainActivity : ComponentActivity() {
         val point: MeteringPoint = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
             .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
-        activeCamera.cameraControl.startFocusAndMetering(action)
         focusOverlay.showAt(x, y)
+        val focusFuture = activeCamera.cameraControl.startFocusAndMetering(action)
+        focusFuture.addListener({
+            try {
+                focusOverlay.setFocusResult(focusFuture.get().isFocusSuccessful)
+            } catch (_: Exception) {
+                focusOverlay.setFocusResult(false)
+            }
+        }, ContextCompat.getMainExecutor(this))
         Toast.makeText(this, "Focusing…", Toast.LENGTH_SHORT).show()
     }
 
@@ -1359,18 +1366,29 @@ class MainActivity : ComponentActivity() {
         }
         private var focusX = 0f
         private var focusY = 0f
+        private var resultColor = 0xFFFFD54F.toInt()
 
         fun showAt(x: Float, y: Float) {
             focusX = x
             focusY = y
+            resultColor = 0xFFFFD54F.toInt()
+            ringPaint.color = resultColor
+            cornerPaint.color = resultColor
             visibility = View.VISIBLE
             invalidate()
             animate().cancel()
             alpha = 1f
-            animate().alpha(0f).setStartDelay(900).setDuration(250).withEndAction {
+            animate().alpha(0f).setStartDelay(1200).setDuration(300).withEndAction {
                 visibility = View.GONE
                 alpha = 1f
             }.start()
+        }
+
+        fun setFocusResult(success: Boolean) {
+            resultColor = if (success) 0xFF69F0AE.toInt() else 0xFFFF5252.toInt()
+            ringPaint.color = resultColor
+            cornerPaint.color = resultColor
+            invalidate()
         }
 
         override fun onDraw(canvas: Canvas) {
