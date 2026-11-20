@@ -173,7 +173,7 @@ class MainActivity : ComponentActivity() {
             "SD" -> Quality.SD
             else -> Quality.FHD
         }
-        videoFps = cameraPrefs.getInt("video_fps", 30).let { if (it == 60) 60 else 30 }
+        videoFps = cameraPrefs.getInt("video_fps", 30).let { if (it == 60) 60 else if (it == 30) 30 else 0 }
         videoStabilizationEnabled = cameraPrefs.getBoolean("video_stabilization", false)
         manualIso = cameraPrefs.getInt("manual_iso", 400).coerceIn(50, 51200)
         manualShutterNs = cameraPrefs.getLong("manual_shutter_ns", 10_000_000L).coerceIn(1_000L, 1_000_000_000L)
@@ -542,7 +542,7 @@ class MainActivity : ComponentActivity() {
             Quality.HD -> "HD"
             else -> "SD"
         }) { cycleVideoQuality() }
-        videoFpsButton = smallButton("FRAME RATE: $videoFps FPS") { cycleVideoFps() }
+        videoFpsButton = smallButton(if (videoFps == 0) "FRAME RATE: AUTO" else "FRAME RATE: $videoFps FPS") { cycleVideoFps() }
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
         videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
@@ -1239,6 +1239,20 @@ class MainActivity : ComponentActivity() {
             .apply()
     }
 
+    private fun findCameraIdForFacing(manager: CameraManager, facing: Int): String? {
+        val matchingIds = manager.cameraIdList.filter { id ->
+            manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == facing
+        }
+        // CameraX's default rear selector normally binds the logical multi-camera.
+        // Prefer that same ID when reading FPS, focus and sensor capabilities.
+        return matchingIds.firstOrNull { id ->
+            val characteristics = manager.getCameraCharacteristics(id)
+            val capabilities = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+            capabilities.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) &&
+                characteristics.physicalCameraIds.isNotEmpty()
+        } ?: matchingIds.firstOrNull()
+    }
+
     private fun updateVideoCapabilities() {
         val activeCamera = camera ?: return
         try {
@@ -1260,14 +1274,19 @@ class MainActivity : ComponentActivity() {
             val manager = getSystemService(CAMERA_SERVICE) as CameraManager
             val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                 CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
-            val id = manager.cameraIdList.firstOrNull {
-                manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == facing
-            }
+            val id = findCameraIdForFacing(manager, facing)
             availableFpsRanges = id?.let {
                 manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
             } ?: emptyArray()
-            if (availableFpsRanges.none { it.lower == videoFps && it.upper == videoFps }) videoFps = 30
-            videoFpsButton.text = "FRAME RATE: $videoFps FPS"
+            val fixedRates = availableFpsRanges.filter { it.lower == it.upper }.map { it.lower }.distinct()
+            if (videoFps !in fixedRates || videoFps !in listOf(30, 60)) {
+                videoFps = when {
+                    fixedRates.contains(30) -> 30
+                    fixedRates.contains(60) -> 60
+                    else -> 0
+                }
+            }
+            videoFpsButton.text = if (videoFps == 0) "FRAME RATE: AUTO" else "FRAME RATE: $videoFps FPS"
             val stabilizationModes = id?.let {
                 manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
             } ?: intArrayOf(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
@@ -1316,10 +1335,14 @@ class MainActivity : ComponentActivity() {
         }
         val choices = listOf(30, 60).filter { fps -> availableFpsRanges.any { it.lower == fps && it.upper == fps } }
         if (choices.isEmpty()) {
-            Toast.makeText(this, "30/60 FPS modes are not exposed by this camera", Toast.LENGTH_SHORT).show()
+            videoFps = 0
+            videoFpsButton.text = "FRAME RATE: AUTO"
+            Toast.makeText(this, "Fixed 30/60 FPS is unavailable; using automatic frame rate", Toast.LENGTH_SHORT).show()
+            saveVideoPreferences()
+            applyVideoRequestOptions()
             return
         }
-        val index = choices.indexOf(videoFps).let { if (it < 0) -1 else it }
+        val index = choices.indexOf(videoFps)
         videoFps = choices[(index + 1) % choices.size]
         videoFpsButton.text = "FRAME RATE: $videoFps FPS"
         saveVideoPreferences()
@@ -1346,8 +1369,10 @@ class MainActivity : ComponentActivity() {
         if (!videoMode) return
         try {
             val builder = CaptureRequestOptions.Builder()
-            val fpsRange = availableFpsRanges.firstOrNull { it.lower == videoFps && it.upper == videoFps }
-            if (fpsRange != null) builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+            if (videoFps > 0) {
+                val fpsRange = availableFpsRanges.firstOrNull { it.lower == videoFps && it.upper == videoFps }
+                if (fpsRange != null) builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+            }
             builder.setCaptureRequestOption(
                 CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
                 if (videoStabilizationEnabled) CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
@@ -1664,9 +1689,7 @@ class MainActivity : ComponentActivity() {
             val manager = getSystemService(CAMERA_SERVICE) as CameraManager
             val wantedFacing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                 CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
-            val id = manager.cameraIdList.firstOrNull {
-                manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == wantedFacing
-            } ?: return
+            val id = findCameraIdForFacing(manager, wantedFacing) ?: return
             val characteristics = manager.getCameraCharacteristics(id)
             minimumFocusDistance = characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
             manualFocusEnabled = manualFocusProgress > 0 && minimumFocusDistance > 0f
@@ -1743,9 +1766,7 @@ class MainActivity : ComponentActivity() {
         val manager = getSystemService(CAMERA_SERVICE) as CameraManager
         val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
             CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
-        val cameraId = manager.cameraIdList.firstOrNull {
-            manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == facing
-        }
+        val cameraId = findCameraIdForFacing(manager, facing)
         if (cameraId == null) {
             trigger.isEnabled = true
             trigger.text = "CAPTURE RAW / DNG"
