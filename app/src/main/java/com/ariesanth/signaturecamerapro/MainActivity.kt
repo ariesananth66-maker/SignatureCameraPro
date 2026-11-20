@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var gridView: GridOverlay
     private lateinit var focusOverlay: FocusOverlay
     private lateinit var zoomLabel: TextView
+    private lateinit var zoomSlider: SeekBar
     private lateinit var audioLevelLabel: TextView
     private lateinit var audioLevelBar: android.widget.ProgressBar
     private lateinit var exposureLabel: TextView
@@ -233,6 +234,7 @@ class MainActivity : ComponentActivity() {
                     val ratio = 1f.coerceIn(state.minZoomRatio, state.maxZoomRatio)
                     camera?.cameraControl?.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
+                    updateLensSelection(ratio)
                     doubleTapDetected = true
                     return true
                 }
@@ -279,11 +281,13 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(0, 6, 0, 2)
         }
-        val zoom = SeekBar(this).apply {
+        zoomSlider = SeekBar(this).apply {
             max = 100
             progress = 0
+            contentDescription = "Camera zoom control"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
                     val state = camera?.cameraInfo?.zoomState?.value ?: return
                     // Logarithmic zoom mapping gives finer control near 1x.
                     val zoomSpan = (state.maxZoomRatio / state.minZoomRatio).coerceAtLeast(1f)
@@ -342,7 +346,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(4, 6, 4, 6)
         }
-        advancedPanel.addView(zoom, LinearLayout.LayoutParams(-1, 42))
+        advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, 42))
         // Secondary settings are tucked away so the live viewfinder stays dominant.
         val exposureRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1509,6 +1513,15 @@ class MainActivity : ComponentActivity() {
                         .build()
                     camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
                     refreshPhotoExtensions()
+                }
+                camera?.cameraInfo?.zoomState?.observe(this) { state ->
+                    zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, state.zoomRatio)
+                    val span = kotlin.math.ln(state.maxZoomRatio / state.minZoomRatio)
+                    val fraction = if (span > 0f && span.isFinite())
+                        (kotlin.math.ln(state.zoomRatio / state.minZoomRatio) / span).coerceIn(0f, 1f)
+                    else 0f
+                    zoomSlider.progress = (fraction * zoomSlider.max).toInt()
+                    updateLensSelection(state.zoomRatio)
                 }
                 updateManualRanges()
                 if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) discoverRearLenses() else {
