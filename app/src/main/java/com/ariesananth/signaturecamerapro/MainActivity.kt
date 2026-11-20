@@ -536,7 +536,9 @@ class MainActivity : ComponentActivity() {
         val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
         exposureIndex = (exposureIndex + delta).coerceIn(range.lower, range.upper)
         activeCamera.cameraControl.setExposureCompensationIndex(exposureIndex)
-        exposureLabel.text = "EV  ${exposureIndex}"
+        val step = activeCamera.cameraInfo.exposureState.exposureCompensationStep
+        val evStops = exposureIndex * step.numerator.toFloat() / step.denominator.toFloat()
+        exposureLabel.text = "EV  ${if (evStops > 0) "+" else ""}%.1f".format(Locale.US, evStops)
     }
 
     private fun hasCameraPermission(): Boolean =
