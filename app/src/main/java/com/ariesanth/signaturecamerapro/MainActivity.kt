@@ -63,12 +63,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var shutterValue: TextView
     private lateinit var isoSlider: SeekBar
     private lateinit var shutterSlider: SeekBar
+    private lateinit var focusValue: TextView
+    private lateinit var focusSlider: SeekBar
+    private lateinit var whiteBalanceButton: Button
     private var activeIsoMin = 100
     private var activeIsoMax = 12800
     private var activeShutterMinNs = 51_265L
     private var activeShutterMaxNs = 170_494_792L
     private var manualIso = 400
     private var manualShutterNs = 10_000_000L
+    private var minimumFocusDistance = 0f
+    private var manualFocusDiopters = 0f
+    private var supportedAwbModes = intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO)
+    private var awbModeIndex = 0
+    private var manualFocusEnabled = false
     private var proModeEnabled = false
     private var imageCapture: ImageCapture? = null
     private var camera: Camera? = null
@@ -254,6 +262,29 @@ class MainActivity : ComponentActivity() {
         proPanel.addView(isoSlider, LinearLayout.LayoutParams(-1, 40))
         proPanel.addView(shutterValue)
         proPanel.addView(shutterSlider, LinearLayout.LayoutParams(-1, 40))
+        focusValue = TextView(this).apply { text = "FOCUS  AUTO"; textSize = 12f; setTextColor(-1) }
+        focusSlider = SeekBar(this).apply {
+            max = 1000
+            progress = 0
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    manualFocusDiopters = minimumFocusDistance * (progress.coerceIn(0, 1000) / 1000f)
+                    focusValue.text = if (progress == 0) "FOCUS  INFINITY" else "FOCUS  %.2f D".format(Locale.US, manualFocusDiopters)
+                    if (fromUser && proModeEnabled && minimumFocusDistance > 0f) {
+                        manualFocusEnabled = true
+                        applyManualCapture()
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        proPanel.addView(focusValue)
+        proPanel.addView(focusSlider, LinearLayout.LayoutParams(-1, 40))
+        whiteBalanceButton = smallButton("WHITE BALANCE: AUTO") {
+            cycleWhiteBalance()
+        }
+        proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
         proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
             (view as Button).isEnabled = false
             view.text = "CAPTURING RAW…"
@@ -527,11 +558,16 @@ class MainActivity : ComponentActivity() {
     private fun applyManualCapture() {
         val activeCamera = camera ?: return
         try {
-            val options = CaptureRequestOptions.Builder()
+            val builder = CaptureRequestOptions.Builder()
                 .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
                 .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manualIso)
                 .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, manualShutterNs)
-                .build()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, supportedAwbModes.getOrElse(awbModeIndex) { CaptureRequest.CONTROL_AWB_MODE_AUTO })
+            if (manualFocusEnabled && minimumFocusDistance > 0f) {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+                builder.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, manualFocusDiopters)
+            }
+            val options = builder.build()
             Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(options)
         } catch (e: Exception) {
             Toast.makeText(this, "Manual exposure unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -542,7 +578,32 @@ class MainActivity : ComponentActivity() {
         try {
             val activeCamera = camera ?: return
             Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
+            manualFocusEnabled = false
+            manualFocusDiopters = 0f
+            awbModeIndex = 0
+            focusSlider.progress = 0
+            focusValue.text = "FOCUS  AUTO"
+            whiteBalanceButton.text = "WHITE BALANCE: AUTO"
         } catch (_: Exception) { }
+    }
+
+    private fun cycleWhiteBalance() {
+        if (supportedAwbModes.isEmpty()) return
+        awbModeIndex = (awbModeIndex + 1) % supportedAwbModes.size
+        val mode = supportedAwbModes[awbModeIndex]
+        val label = when (mode) {
+            CaptureRequest.CONTROL_AWB_MODE_AUTO -> "AUTO"
+            CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT -> "INCANDESCENT"
+            CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT -> "FLUORESCENT"
+            CaptureRequest.CONTROL_AWB_MODE_WARM_FLUORESCENT -> "WARM FLUORESCENT"
+            CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT -> "DAYLIGHT"
+            CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT -> "CLOUDY"
+            CaptureRequest.CONTROL_AWB_MODE_TWILIGHT -> "TWILIGHT"
+            CaptureRequest.CONTROL_AWB_MODE_SHADE -> "SHADE"
+            else -> "AUTO"
+        }
+        whiteBalanceButton.text = "WHITE BALANCE: $label"
+        if (proModeEnabled) applyManualCapture()
     }
 
     private fun changeExposure(delta: Int) {
@@ -592,6 +653,18 @@ class MainActivity : ComponentActivity() {
                 manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == wantedFacing
             } ?: return
             val characteristics = manager.getCameraCharacteristics(id)
+            minimumFocusDistance = characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+            manualFocusEnabled = false
+            focusSlider.isEnabled = minimumFocusDistance > 0f
+            focusValue.text = if (minimumFocusDistance > 0f) "FOCUS  AUTO  (0–%.1f D)".format(Locale.US, minimumFocusDistance) else "FOCUS  AUTO (FIXED FOCUS)"
+            focusSlider.progress = 0
+            supportedAwbModes = (characteristics.get(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)
+                ?: intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO))
+                .filter { it in CaptureRequest.CONTROL_AWB_MODE_AUTO..CaptureRequest.CONTROL_AWB_MODE_SHADE }
+                .toIntArray()
+                .let { modes -> if (modes.contains(CaptureRequest.CONTROL_AWB_MODE_AUTO)) modes else intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO) + modes }
+            awbModeIndex = 0
+            whiteBalanceButton.text = "WHITE BALANCE: AUTO"
             characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)?.let {
                 activeIsoMin = it.lower
                 activeIsoMax = it.upper
