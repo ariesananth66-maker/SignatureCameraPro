@@ -123,6 +123,8 @@ class MainActivity : ComponentActivity() {
     private var jpegQuality = 95
     private var exposureIndex = 0
     private val handler = Handler(Looper.getMainLooper())
+    private var countdownActive = false
+    private var countdownRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1474,26 +1476,50 @@ class MainActivity : ComponentActivity() {
 
     private fun triggerCaptureAction() {
         if (!::captureButton.isInitialized || !captureButton.isEnabled) return
+        if (countdownActive) {
+            cancelCaptureCountdown()
+            return
+        }
         if (videoMode) {
             toggleVideoRecording()
         } else if (timerSeconds == 0) {
             takePhoto()
         } else {
-            captureButton.isEnabled = false
+            countdownActive = true
             runCaptureCountdown(timerSeconds)
         }
     }
 
-    private fun runCaptureCountdown(secondsRemaining: Int) {
-        if (isFinishing || isDestroyed) return
-        if (secondsRemaining <= 0) {
+    private fun cancelCaptureCountdown() {
+        countdownRunnable?.let { handler.removeCallbacks(it) }
+        countdownRunnable = null
+        countdownActive = false
+        if (::captureButton.isInitialized) {
             captureButton.text = "●"
+            captureButton.contentDescription = "Take photo"
+            captureButton.isEnabled = true
+        }
+        Toast.makeText(this, "Timer cancelled", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun runCaptureCountdown(secondsRemaining: Int) {
+        if (isFinishing || isDestroyed) {
+            countdownActive = false
+            return
+        }
+        if (secondsRemaining <= 0) {
+            countdownRunnable = null
+            countdownActive = false
+            captureButton.text = "●"
+            captureButton.contentDescription = "Take photo"
             captureButton.isEnabled = true
             takePhoto()
             return
         }
-        captureButton.text = secondsRemaining.toString()
-        handler.postDelayed({ runCaptureCountdown(secondsRemaining - 1) }, 1000L)
+        captureButton.text = "CANCEL $secondsRemaining"
+        captureButton.contentDescription = "Cancel photo timer, $secondsRemaining seconds remaining"
+        countdownRunnable = Runnable { runCaptureCountdown(secondsRemaining - 1) }
+        handler.postDelayed(countdownRunnable!!, 1000L)
     }
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
