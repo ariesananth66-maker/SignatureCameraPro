@@ -529,7 +529,18 @@ class MainActivity : ComponentActivity() {
             button.minWidth = 0
             button.minHeight = 48
             button.setPadding(8, 0, 8, 0)
+            // OEM extensions can change the active camera pipeline; avoid presenting
+            // optical-lens presets as reliable while a vendor effect is active.
+            button.isEnabled = selectedPhotoExtension == null
+            button.alpha = if (button.isEnabled) 1f else 0.45f
+            button.contentDescription = if (button.isEnabled)
+                "Switch logical rear camera to the $label lens view"
+            else "Lens presets are temporarily unavailable while an OEM photo effect is active"
             button.setOnClickListener {
+                if (selectedPhotoExtension != null) {
+                    Toast.makeText(this, "Turn off the OEM photo effect to use lens presets", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 if (cameraSelector != CameraSelector.DEFAULT_BACK_CAMERA) return@setOnClickListener
                 val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
                 val target = ratio.coerceIn(state.minZoomRatio, state.maxZoomRatio)
