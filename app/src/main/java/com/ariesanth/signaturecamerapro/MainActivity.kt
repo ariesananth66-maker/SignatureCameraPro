@@ -176,15 +176,32 @@ class MainActivity : ComponentActivity() {
                 }
             })
         var multiTouchGesture = false
+        var doubleTapDetected = false
+        val tapGestureDetector = android.view.GestureDetector(this,
+            object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(event: MotionEvent): Boolean {
+                    val state = camera?.cameraInfo?.zoomState?.value ?: return true
+                    val ratio = 1f.coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                    camera?.cameraControl?.setZoomRatio(ratio)
+                    zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
+                    doubleTapDetected = true
+                    return true
+                }
+            })
         previewView.setOnTouchListener { _, event ->
             scaleDetector.onTouchEvent(event)
+            tapGestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_POINTER_DOWN -> multiTouchGesture = true
                 MotionEvent.ACTION_UP -> {
-                    if (!multiTouchGesture) focusAt(event.x, event.y)
+                    if (!multiTouchGesture && !doubleTapDetected) focusAt(event.x, event.y)
+                    doubleTapDetected = false
                     multiTouchGesture = false
                 }
-                MotionEvent.ACTION_CANCEL -> multiTouchGesture = false
+                MotionEvent.ACTION_CANCEL -> {
+                    doubleTapDetected = false
+                    multiTouchGesture = false
+                }
             }
             true
         }
