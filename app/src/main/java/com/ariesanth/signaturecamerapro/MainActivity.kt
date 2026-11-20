@@ -526,7 +526,7 @@ class MainActivity : ComponentActivity() {
         mainRow.setPadding(4, 8, 4, 8)
         mainRow.addView(flip, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         mainRow.addView(captureButton, LinearLayout.LayoutParams(0, 64, 1.15f).apply { setMargins(3, 0, 3, 0) })
-        mainRow.addView(flash, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
+        mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 64, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS     •     PINCH TO ZOOM"
