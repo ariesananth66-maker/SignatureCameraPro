@@ -1102,6 +1102,7 @@ class MainActivity : ComponentActivity() {
             micPeakAmplitude = 0.0
             micAmplitudeTotal = 0.0
             micAmplitudeSamples = 0
+            micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
             lastMicLevelSummary = "MIC LEVEL MEASURING"
             audioLevelBar.progress = 0
             audioLevelLabel.text = "MIC  •  STARTING"
@@ -1120,6 +1121,7 @@ class MainActivity : ComponentActivity() {
                         }
                         is VideoRecordEvent.Status -> {
                             val stats = event.recordingStats.audioStats
+                            micAudioState = stats.audioState
                             val amplitude = stats.audioAmplitude.coerceIn(0.0, 1.0)
                             val dbfs = 20.0 * kotlin.math.log10(amplitude.coerceAtLeast(0.00001))
                             if (stats.audioState == androidx.camera.video.AudioStats.AUDIO_STATE_ACTIVE && amplitude > 0.0) {
@@ -1133,6 +1135,8 @@ class MainActivity : ComponentActivity() {
                                     if (amplitude > 0.0) "MIC  •  ${dbfs.toInt()} dBFS" else "MIC  •  ACTIVE"
                                 androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> "MIC  •  MUTED"
                                 androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> "MIC  •  SOURCE SILENCED"
+                                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_ERROR -> "MIC  •  SOURCE ERROR"
+                                androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR -> "MIC  •  ENCODER ERROR"
                                 else -> "MIC  •  WAITING"
                             }
                         }
@@ -1146,7 +1150,13 @@ class MainActivity : ComponentActivity() {
                                 val averageDbfs = micAmplitudeTotal / micAmplitudeSamples
                                 lastMicLevelSummary = "MIC PEAK ${micPeakAmplitude.toInt()} dBFS  •  AVG ${averageDbfs.toInt()} dBFS"
                             } else {
-                                lastMicLevelSummary = "MIC INPUT NOT DETECTED"
+                                lastMicLevelSummary = when (micAudioState) {
+                                    androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> "MIC SOURCE SILENCED"
+                                    androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_ERROR -> "MIC SOURCE ERROR"
+                                    androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR -> "MIC ENCODER ERROR"
+                                    androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> "MIC MUTED"
+                                    else -> "MIC INPUT NOT DETECTED"
+                                }
                             }
                             captureButton.isEnabled = true
                             captureButton.text = "●"
