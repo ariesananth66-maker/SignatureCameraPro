@@ -105,6 +105,8 @@ class MainActivity : ComponentActivity() {
     private var manualShutterNs = 10_000_000L
     private var minimumFocusDistance = 0f
     private var manualFocusDiopters = 0f
+    private var manualFocusProgress = 0
+    private var savedAwbMode = CaptureRequest.CONTROL_AWB_MODE_AUTO
     private var supportedAwbModes = intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO)
     private var supportedSceneModes = intArrayOf(CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
     private var sceneModeIndex = 0
@@ -144,6 +146,8 @@ class MainActivity : ComponentActivity() {
         videoStabilizationEnabled = cameraPrefs.getBoolean("video_stabilization", false)
         manualIso = cameraPrefs.getInt("manual_iso", 400).coerceIn(50, 51200)
         manualShutterNs = cameraPrefs.getLong("manual_shutter_ns", 10_000_000L).coerceIn(1_000L, 1_000_000_000L)
+        manualFocusProgress = cameraPrefs.getInt("manual_focus_progress", 0).coerceIn(0, 1000)
+        savedAwbMode = cameraPrefs.getInt("manual_awb_mode", CaptureRequest.CONTROL_AWB_MODE_AUTO)
         buildCameraUi()
         if (hasCameraPermission()) startCamera()
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
@@ -382,9 +386,13 @@ class MainActivity : ComponentActivity() {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     manualFocusDiopters = minimumFocusDistance * (progress.coerceIn(0, 1000) / 1000f)
                     focusValue.text = if (progress == 0) "FOCUS  INFINITY" else "FOCUS  %.2f D".format(Locale.US, manualFocusDiopters)
-                    if (fromUser && proModeEnabled && minimumFocusDistance > 0f) {
-                        manualFocusEnabled = true
-                        applyManualCapture()
+                    if (fromUser) {
+                        manualFocusProgress = progress.coerceIn(0, 1000)
+                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_focus_progress", manualFocusProgress).apply()
+                        if (proModeEnabled && minimumFocusDistance > 0f) {
+                            manualFocusEnabled = manualFocusProgress > 0
+                            applyManualCapture()
+                        }
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -935,6 +943,8 @@ class MainActivity : ComponentActivity() {
         if (supportedAwbModes.isEmpty()) return
         awbModeIndex = (awbModeIndex + 1) % supportedAwbModes.size
         val mode = supportedAwbModes[awbModeIndex]
+        savedAwbMode = mode
+        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_awb_mode", mode).apply()
         val label = when (mode) {
             CaptureRequest.CONTROL_AWB_MODE_AUTO -> "AUTO"
             CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT -> "INCANDESCENT"
@@ -1174,17 +1184,19 @@ class MainActivity : ComponentActivity() {
             } ?: return
             val characteristics = manager.getCameraCharacteristics(id)
             minimumFocusDistance = characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
-            manualFocusEnabled = false
+            manualFocusEnabled = manualFocusProgress > 0 && minimumFocusDistance > 0f
             focusSlider.isEnabled = minimumFocusDistance > 0f
-            focusValue.text = if (minimumFocusDistance > 0f) "FOCUS  AUTO  (0–%.1f D)".format(Locale.US, minimumFocusDistance) else "FOCUS  AUTO (FIXED FOCUS)"
-            focusSlider.progress = 0
+            focusSlider.progress = if (minimumFocusDistance > 0f) manualFocusProgress else 0
+            manualFocusDiopters = minimumFocusDistance * (focusSlider.progress / 1000f)
+            focusValue.text = if (minimumFocusDistance > 0f && manualFocusProgress > 0) "FOCUS  %.2f D".format(Locale.US, manualFocusDiopters) else if (minimumFocusDistance > 0f) "FOCUS  AUTO  (0–%.1f D)".format(Locale.US, minimumFocusDistance) else "FOCUS  AUTO (FIXED FOCUS)"
             supportedAwbModes = (characteristics.get(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)
                 ?: intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO))
                 .filter { it in CaptureRequest.CONTROL_AWB_MODE_AUTO..CaptureRequest.CONTROL_AWB_MODE_SHADE }
                 .toIntArray()
                 .let { modes -> if (modes.contains(CaptureRequest.CONTROL_AWB_MODE_AUTO)) modes else intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO) + modes }
-            awbModeIndex = 0
-            whiteBalanceButton.text = "WHITE BALANCE: AUTO"
+            awbModeIndex = supportedAwbModes.indexOf(savedAwbMode).takeIf { it >= 0 } ?: 0
+            savedAwbMode = supportedAwbModes[awbModeIndex]
+            whiteBalanceButton.text = "WHITE BALANCE: ${when (savedAwbMode) { CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT -> "INCANDESCENT"; CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT -> "FLUORESCENT"; CaptureRequest.CONTROL_AWB_MODE_WARM_FLUORESCENT -> "WARM FLUORESCENT"; CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT -> "DAYLIGHT"; CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT -> "CLOUDY"; CaptureRequest.CONTROL_AWB_MODE_TWILIGHT -> "TWILIGHT"; CaptureRequest.CONTROL_AWB_MODE_SHADE -> "SHADE"; else -> "AUTO" }}"
             val availableScenes = characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES)
                 ?: intArrayOf(CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
             val preferredScenes = listOf(
@@ -1211,6 +1223,7 @@ class MainActivity : ComponentActivity() {
             shutterValue.text = "SHUTTER ${formatShutter(manualShutterNs)}  (${formatShutter(activeShutterMinNs)}–${formatShutter(activeShutterMaxNs)})"
             isoSlider.progress = (((manualIso - activeIsoMin).toFloat() / (activeIsoMax - activeIsoMin).coerceAtLeast(1)) * 100).toInt().coerceIn(0, 100)
             shutterSlider.progress = shutterProgressFromNs(manualShutterNs)
+            if (proModeEnabled && selectedPhotoExtension == null && !videoMode) applyManualCapture()
         } catch (e: Exception) {
             Toast.makeText(this, "Could not read camera manual ranges", Toast.LENGTH_SHORT).show()
         }
