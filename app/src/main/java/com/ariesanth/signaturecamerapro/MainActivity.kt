@@ -16,6 +16,8 @@ import androidx.camera.camera2.interop.CaptureRequestOptions
 import android.hardware.camera2.CameraManager
 import android.graphics.ImageFormat
 import android.content.ContentValues
+import android.content.Intent
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Canvas
@@ -238,9 +240,11 @@ class MainActivity : ComponentActivity() {
             (it as Button).text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
         }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
-        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
-        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
-        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
+        val galleryButton = smallButton("RECENT") { showRecentCaptures() }
+        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
+        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
+        utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
+        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
         val proButton = smallButton("PRO CONTROLS") {
             proModeEnabled = !proModeEnabled
             proPanel.visibility = if (proModeEnabled) View.VISIBLE else View.GONE
@@ -1149,6 +1153,64 @@ class MainActivity : ComponentActivity() {
                 restore("RAW capture unavailable: ${e.localizedMessage}")
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun showRecentCaptures() {
+        data class CaptureItem(val title: String, val uri: Uri, val mime: String, val added: Long)
+        val items = mutableListOf<CaptureItem>()
+        val sources = listOf(
+            Triple(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Images.Media.DISPLAY_NAME, "image"),
+            Triple(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, MediaStore.Video.Media.DISPLAY_NAME, "video")
+        )
+        try {
+            sources.forEach { (collection, nameColumn, kind) ->
+                val projection = arrayOf(
+                    MediaStore.MediaColumns._ID,
+                    nameColumn,
+                    MediaStore.MediaColumns.DATE_ADDED,
+                    MediaStore.MediaColumns.MIME_TYPE
+                )
+                contentResolver.query(
+                    collection,
+                    projection,
+                    "${nameColumn} LIKE ?",
+                    arrayOf("Signature_%"),
+                    "${MediaStore.MediaColumns.DATE_ADDED} DESC"
+                )?.use { cursor ->
+                    val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                    val nameIndex = cursor.getColumnIndexOrThrow(nameColumn)
+                    val dateIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_ADDED)
+                    val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idIndex)
+                        val uri = Uri.withAppendedPath(collection, id.toString())
+                        val mime = cursor.getString(mimeIndex) ?: if (kind == "image") "image/jpeg" else "video/mp4"
+                        items.add(CaptureItem(cursor.getString(nameIndex) ?: "Capture", uri, mime, cursor.getLong(dateIndex)))
+                    }
+                }
+            }
+            val recent = items.sortedByDescending { it.added }.take(40)
+            if (recent.isEmpty()) {
+                Toast.makeText(this, "No SignatureCameraPro captures found yet", Toast.LENGTH_SHORT).show()
+                return
+            }
+            AlertDialog.Builder(this)
+                .setTitle("RECENT CAPTURES")
+                .setItems(recent.map { it.title }.toTypedArray()) { _, which ->
+                    val item = recent[which]
+                    try {
+                        val view = Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, item.mime)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivity(view)
+                    } catch (_: Exception) {
+                        Toast.makeText(this, "No app available to open this file", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("CLOSE", null)
+                .show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Gallery unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun takePhoto() {
