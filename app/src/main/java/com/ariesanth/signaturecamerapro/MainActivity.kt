@@ -10,6 +10,13 @@ import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.DngCreator
 import android.media.Image
 import android.media.ImageReader
+import android.media.MediaRecorder
+import android.media.MediaExtractor
+import android.media.MediaMuxer
+import android.media.MediaFormat
+import android.media.MediaCodec
+import androidx.camera.video.FileOutputOptions
+import java.io.File
 import android.net.Uri
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.CaptureRequestOptions
@@ -103,6 +110,9 @@ class MainActivity : ComponentActivity() {
     private var photoFlashMode = ImageCapture.FLASH_MODE_OFF
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
+    private var activeAudioRecorder: MediaRecorder? = null
+    private var activeVideoTempFile: File? = null
+    private var activeAudioTempFile: File? = null
     private var micPeakAmplitude = 0.0
     private var micAmplitudeTotal = 0.0
     private var micAmplitudeSamples = 0
@@ -895,9 +905,9 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Video camera is not ready", Toast.LENGTH_SHORT).show()
             return
         }
-        val current = recording
-        if (current != null) {
-            current.stop()
+        if (recording != null) {
+            recording?.stop()
+            stopExternalAudio()
             captureButton.isEnabled = false
             captureButton.text = "SAVING…"
             return
@@ -908,79 +918,145 @@ class MainActivity : ComponentActivity() {
             return
         }
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val values = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, "Signature_Video_$stamp.mp4")
-            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/SignatureCameraPro")
-            }
-        }
-        val output = MediaStoreOutputOptions.Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-            .setContentValues(values)
-            .build()
-        micPeakAmplitude = 0.0
-        micAmplitudeTotal = 0.0
-        micAmplitudeSamples = 0
-        micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
+        val videoFile = File(cacheDir, "sc_video_$stamp.mp4")
+        val audioFile = File(cacheDir, "sc_audio_$stamp.mp4")
+        activeVideoTempFile = videoFile
+        activeAudioTempFile = audioFile
         try {
-            recording = activeVideo.output.prepareRecording(this, output)
-                .withAudioEnabled()
-                .start(ContextCompat.getMainExecutor(this)) { event ->
-                    when (event) {
-                        is VideoRecordEvent.Start -> {
-                            captureButton.text = "■ STOP"
-                            micPeakAmplitude = 0.0
-                            micAmplitudeTotal = 0.0
-                            micAmplitudeSamples = 0
-                            audioLevelBar.progress = 0
-                            audioLevelLabel.text = "MIC  •  MEASURING…"
-                            Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
-                        }
-                        is VideoRecordEvent.Status -> {
-                            val audioStats = event.recordingStats.audioStats
-                            micAudioState = audioStats.audioState
-                            if (audioStats.hasAudio()) {
-                                val amplitude = audioStats.audioAmplitude.coerceIn(0.0, 1.0)
-                                micPeakAmplitude = maxOf(micPeakAmplitude, amplitude)
-                                micAmplitudeTotal += amplitude
-                                micAmplitudeSamples += 1
-                                audioLevelBar.progress = (amplitude * 100).toInt()
-                                audioLevelLabel.text = "MIC  ${(amplitude * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
-                            } else {
-                                audioLevelBar.progress = 0
-                                audioLevelLabel.text = "MIC AUDIO  •  NOT ACTIVE"
-                            }
-                        }
-                        is VideoRecordEvent.Finalize -> {
-                            recording = null
-                            captureButton.isEnabled = true
-                            captureButton.text = "● REC"
-                            val average = if (micAmplitudeSamples > 0) micAmplitudeTotal / micAmplitudeSamples else 0.0
-                            val stateLabel = when (micAudioState) {
-                                androidx.camera.video.AudioStats.AUDIO_STATE_ACTIVE -> "ACTIVE"
-                                androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> "MUTED"
-                                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> "SILENCED"
-                                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_ERROR -> "SOURCE ERROR"
-                                androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR -> "ENCODER ERROR"
-                                else -> "UNAVAILABLE"
-                            }
-                            val diagnostic = "MIC $stateLabel  •  AVG ${(average * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
-                            audioLevelBar.progress = (average * 100).toInt()
-                            audioLevelLabel.text = diagnostic
-                            if (event.hasError()) {
-                                Toast.makeText(this, "Video failed: ${event.error} • $diagnostic", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(this, "Video saved • $diagnostic", Toast.LENGTH_LONG).show()
-                            }
+            val mic = if (android.os.Build.VERSION.SDK_INT >= 31) MediaRecorder(this) else MediaRecorder()
+            activeAudioRecorder = mic
+            mic.setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
+            mic.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            mic.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            mic.setAudioChannels(1)
+            mic.setAudioSamplingRate(48000)
+            mic.setAudioEncodingBitRate(192000)
+            mic.setOutputFile(audioFile.absolutePath)
+            mic.prepare()
+            mic.start()
+
+            audioLevelBar.progress = 0
+            audioLevelLabel.text = "MIC  •  CAMCORDER SOURCE"
+            recording = activeVideo.output.prepareRecording(
+                this, FileOutputOptions.Builder(videoFile).build()
+            ).start(ContextCompat.getMainExecutor(this)) { event ->
+                when (event) {
+                    is VideoRecordEvent.Start -> {
+                        captureButton.text = "■ STOP"
+                        Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
+                    }
+                    is VideoRecordEvent.Status -> Unit
+                    is VideoRecordEvent.Finalize -> {
+                        recording = null
+                        stopExternalAudio()
+                        if (event.hasError()) {
+                            videoFile.delete(); audioFile.delete()
+                            activeVideoTempFile = null; activeAudioTempFile = null
+                            captureButton.isEnabled = true; captureButton.text = "● REC"
+                            audioLevelLabel.text = "MIC  •  VIDEO ERROR"
+                            Toast.makeText(this, "Video failed: ${event.error}", Toast.LENGTH_LONG).show()
+                        } else {
+                            audioLevelLabel.text = "MIC  •  FINALIZING"
+                            Thread {
+                                var result: Uri? = null
+                                var problem: Exception? = null
+                                try { result = muxTracksToGallery(videoFile, audioFile, "Signature_Video_$stamp.mp4") }
+                                catch (e: Exception) { problem = e }
+                                finally { videoFile.delete(); audioFile.delete() }
+                                runOnUiThread {
+                                    activeVideoTempFile = null; activeAudioTempFile = null
+                                    captureButton.isEnabled = true; captureButton.text = "● REC"
+                                    if (result != null) {
+                                        audioLevelLabel.text = "MIC  •  CAMCORDER AAC"
+                                        Toast.makeText(this, "Video saved with CAMCORDER audio", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        audioLevelLabel.text = "MIC  •  MUX ERROR"
+                                        Toast.makeText(this, "Audio/video combine failed: ${problem?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }.start()
                         }
                     }
                 }
+            }
         } catch (e: Exception) {
+            stopExternalAudio()
+            videoFile.delete(); audioFile.delete()
+            activeVideoTempFile = null; activeAudioTempFile = null
             recording = null
-            captureButton.isEnabled = true
-            captureButton.text = "● REC"
+            captureButton.isEnabled = true; captureButton.text = "● REC"
             audioLevelLabel.text = "MIC  •  START FAILED"
-            Toast.makeText(this, "Cannot start video: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Cannot start recording: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun stopExternalAudio() {
+        val mic = activeAudioRecorder ?: return
+        activeAudioRecorder = null
+        try { mic.stop() } catch (_: Exception) { }
+        try { mic.reset() } catch (_: Exception) { }
+        try { mic.release() } catch (_: Exception) { }
+    }
+
+    private fun muxTracksToGallery(videoFile: File, audioFile: File, name: String): Uri {
+        val video = MediaExtractor()
+        val audio = MediaExtractor()
+        var muxer: MediaMuxer? = null
+        var uri: Uri? = null
+        try {
+            video.setDataSource(videoFile.absolutePath)
+            audio.setDataSource(audioFile.absolutePath)
+            val vt = (0 until video.trackCount).firstOrNull { video.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true } ?: error("Video track missing")
+            val at = (0 until audio.trackCount).firstOrNull { audio.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true } ?: error("Audio track missing")
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, name)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/SignatureCameraPro")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+            }
+            uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error("Gallery output unavailable")
+            val pfd = contentResolver.openFileDescriptor(uri, "w") ?: error("Cannot open gallery output")
+            pfd.use {
+                muxer = MediaMuxer(it.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                val outVideo = muxer.addTrack(video.getTrackFormat(vt))
+                val outAudio = muxer.addTrack(audio.getTrackFormat(at))
+                muxer.start()
+                video.selectTrack(vt); audio.selectTrack(at)
+                val vb = java.nio.ByteBuffer.allocate(1024 * 1024)
+                val ab = java.nio.ByteBuffer.allocate(256 * 1024)
+                var vTime = video.sampleTime
+                var aTime = audio.sampleTime
+                while (vTime >= 0 || aTime >= 0) {
+                    val useVideo = aTime < 0 || (vTime >= 0 && vTime <= aTime)
+                    val ex = if (useVideo) video else audio
+                    val buf = if (useVideo) vb else ab
+                    buf.clear()
+                    val size = ex.readSampleData(buf, 0)
+                    if (size < 0) {
+                        if (useVideo) vTime = -1 else aTime = -1
+                        continue
+                    }
+                    val info = MediaCodec.BufferInfo().apply { set(0, size, ex.sampleTime, ex.sampleFlags) }
+                    buf.position(0); buf.limit(size)
+                    muxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
+                    ex.advance()
+                    if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
+                }
+                muxer.stop()
+            }
+            muxer.release(); muxer = null
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                contentResolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+            }
+            return uri
+        } catch (e: Exception) {
+            try { muxer?.release() } catch (_: Exception) { }
+            uri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) { } }
+            throw e
+        } finally {
+            video.release(); audio.release()
         }
     }
 
