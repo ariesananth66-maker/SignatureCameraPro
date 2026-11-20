@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private var gridEnabled = false
     private var timerSeconds = 0
+    private var jpegQuality = 95
     private var exposureIndex = 0
     private val handler = Handler(Looper.getMainLooper())
 
@@ -130,6 +131,7 @@ class MainActivity : ComponentActivity() {
         val cameraPrefs = getSharedPreferences("signature_camera_settings", MODE_PRIVATE)
         gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
         timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
+        jpegQuality = cameraPrefs.getInt("jpeg_quality", 95).let { if (it == 90 || it == 95 || it == 100) it else 95 }
         videoQuality = when (cameraPrefs.getString("video_quality", "FHD")) {
             "UHD" -> Quality.UHD
             "HD" -> Quality.HD
@@ -293,6 +295,15 @@ class MainActivity : ComponentActivity() {
         photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
         photoExtensionButton.isEnabled = false
         panel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(3, 4, 3, 4) })
+        val jpegQualityButton = smallButton("JPEG QUALITY: $jpegQuality%") {
+            jpegQuality = when (jpegQuality) { 90 -> 95; 95 -> 100; else -> 90 }
+            getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+                .putInt("jpeg_quality", jpegQuality).apply()
+            (it as Button).text = "JPEG QUALITY: $jpegQuality%"
+            Toast.makeText(this, "JPEG quality set to $jpegQuality%", Toast.LENGTH_SHORT).show()
+            if (!videoMode) startCamera()
+        }
+        panel.addView(jpegQualityButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(3, 0, 3, 4) })
 
         proPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1091,6 +1102,7 @@ class MainActivity : ComponentActivity() {
                     videoCapture = null
                     imageCapture = ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                        .setJpegQuality(jpegQuality)
                         .setFlashMode(ImageCapture.FLASH_MODE_OFF)
                         .build()
                     camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
@@ -1111,7 +1123,7 @@ class MainActivity : ComponentActivity() {
                     try {
                         provider.unbindAll()
                         val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-                        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setFlashMode(ImageCapture.FLASH_MODE_OFF).build()
+                        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(jpegQuality).setFlashMode(ImageCapture.FLASH_MODE_OFF).build()
                         camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
                         updateManualRanges()
                     } catch (fallback: Exception) {
