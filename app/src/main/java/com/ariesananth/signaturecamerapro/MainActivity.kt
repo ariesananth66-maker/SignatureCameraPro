@@ -83,8 +83,28 @@ class MainActivity : ComponentActivity() {
         gridView.visibility = View.GONE
         root.addView(gridView, FrameLayout.LayoutParams(-1, -1))
 
+        val scaleDetector = android.view.ScaleGestureDetector(this,
+            object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
+                    val state = camera?.cameraInfo?.zoomState?.value ?: return true
+                    val ratio = (state.zoomRatio * detector.scaleFactor)
+                        .coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                    camera?.cameraControl?.setZoomRatio(ratio)
+                    zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
+                    return true
+                }
+            })
+        var multiTouchGesture = false
         previewView.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_UP) focusAt(event.x, event.y)
+            scaleDetector.onTouchEvent(event)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN -> multiTouchGesture = true
+                MotionEvent.ACTION_UP -> {
+                    if (!multiTouchGesture) focusAt(event.x, event.y)
+                    multiTouchGesture = false
+                }
+                MotionEvent.ACTION_CANCEL -> multiTouchGesture = false
+            }
             true
         }
 
