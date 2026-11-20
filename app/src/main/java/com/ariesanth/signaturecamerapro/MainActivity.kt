@@ -920,6 +920,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun updateLensButtonAvailability(minZoom: Float, maxZoom: Float) {
+        if (!::lensRow.isInitialized) return
+        for (i in 0 until lensRow.childCount) {
+            val button = lensRow.getChildAt(i) as? Button ?: continue
+            val ratio = button.tag as? Float ?: continue
+            val available = cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA &&
+                ratio >= minZoom && ratio <= maxZoom
+            button.isEnabled = available
+            button.alpha = if (available) 1f else 0.42f
+            val label = button.text.toString().replace("×", "x")
+            button.contentDescription = if (available) {
+                "Switch rear camera to $label lens view"
+            } else {
+                "$label lens preset is outside the active camera zoom range"
+            }
+        }
+    }
+
     private fun updateLensSelection(zoomRatio: Float) {
         if (!::lensRow.isInitialized) return
         var nearest: Button? = null
@@ -1602,6 +1620,7 @@ class MainActivity : ComponentActivity() {
                         (kotlin.math.ln(state.zoomRatio / state.minZoomRatio) / span).coerceIn(0f, 1f)
                     else 0f
                     zoomSlider.progress = (fraction * zoomSlider.max).toInt()
+                    updateLensButtonAvailability(state.minZoomRatio, state.maxZoomRatio)
                     updateLensSelection(state.zoomRatio)
                 }
                 updateManualRanges()
