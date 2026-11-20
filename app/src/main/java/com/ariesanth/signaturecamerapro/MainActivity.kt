@@ -846,6 +846,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cycleSceneMode() {
+        if (videoMode) {
+            Toast.makeText(this, "Scene presets are available in Photo mode only", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (supportedSceneModes.size <= 1) {
             Toast.makeText(this, "Portrait/Night scene modes are not exposed by this camera", Toast.LENGTH_SHORT).show()
             return
@@ -877,11 +881,12 @@ class MainActivity : ComponentActivity() {
         if (!::sceneModeButton.isInitialized) return
         val mode = supportedSceneModes.getOrElse(sceneModeIndex) { CaptureRequest.CONTROL_SCENE_MODE_DISABLED }
         val label = when (mode) {
-            CaptureRequest.CONTROL_SCENE_MODE_PORTRAIT -> "PORTRAIT"
-            CaptureRequest.CONTROL_SCENE_MODE_NIGHT -> "NIGHT"
+            CaptureRequest.CONTROL_SCENE_MODE_PORTRAIT -> "PORTRAIT (HW)"
+            CaptureRequest.CONTROL_SCENE_MODE_NIGHT -> "NIGHT (HW)"
             else -> "AUTO"
         }
         sceneModeButton.text = "SCENE: $label"
+        sceneModeButton.contentDescription = "Camera hardware scene preset: $label. Not computational portrait blur or multi-frame night processing."
         sceneModeButton.isEnabled = supportedSceneModes.size > 1
     }
 
