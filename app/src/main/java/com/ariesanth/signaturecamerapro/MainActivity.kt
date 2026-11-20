@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var whiteBalanceButton: Button
     private lateinit var sceneModeButton: Button
     private lateinit var photoExtensionButton: Button
+    private lateinit var photoModeButton: Button
     private lateinit var videoModeButton: Button
     private lateinit var videoQualityButton: Button
     private lateinit var videoFpsButton: Button
@@ -266,7 +267,6 @@ class MainActivity : ComponentActivity() {
         }
         top.addView(title)
         top.addView(zoomLabel)
-        top.addView(zoom, LinearLayout.LayoutParams(-1, 42))
         lensRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, 4, 0, 2) }
         top.addView(lensRow, LinearLayout.LayoutParams(-1, 44))
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
@@ -280,7 +280,13 @@ class MainActivity : ComponentActivity() {
             clipChildren = false
             clipToPadding = false
         }
-        // Spacious two-row control deck: exposure controls stay separate from utility toggles.
+        val advancedPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(4, 6, 4, 6)
+        }
+        advancedPanel.addView(zoom, LinearLayout.LayoutParams(-1, 42))
+        // Secondary settings are tucked away so the live viewfinder stays dominant.
         val exposureRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -300,7 +306,7 @@ class MainActivity : ComponentActivity() {
         exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, 48, 1f))
         exposureRow.addView(smallButton("−  EV") { changeExposure(-1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
         exposureRow.addView(smallButton("+  EV") { changeExposure(1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
-        panel.addView(exposureRow)
+        advancedPanel.addView(exposureRow)
 
         val utilityRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -340,11 +346,11 @@ class MainActivity : ComponentActivity() {
             } else resetManualCapture()
         }
         utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
-        panel.addView(utilityRow)
+        advancedPanel.addView(utilityRow)
 
         photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
         photoExtensionButton.isEnabled = false
-        panel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(3, 4, 3, 4) })
+        advancedPanel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 4, 3, 4) })
         val jpegQualityButton = smallButton("JPEG QUALITY: $jpegQuality%") {
             jpegQuality = when (jpegQuality) { 90 -> 95; 95 -> 100; else -> 90 }
             getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
@@ -353,7 +359,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "JPEG quality set to $jpegQuality%", Toast.LENGTH_SHORT).show()
             if (!videoMode) startCamera()
         }
-        panel.addView(jpegQualityButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(3, 0, 3, 4) })
+        advancedPanel.addView(jpegQualityButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
 
         proPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -431,33 +437,25 @@ class MainActivity : ComponentActivity() {
             view.text = "CAPTURING RAW…"
             captureRawDng(view)
         }, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 8, 0, 0) })
-        panel.addView(proPanel)
+        advancedPanel.addView(proPanel)
 
         val videoRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, 5, 0, 5)
         }
-        videoModeButton = smallButton("PHOTO MODE") {
-            if (recording != null) {
-                Toast.makeText(this, "Stop recording before changing mode", Toast.LENGTH_SHORT).show()
-                return@smallButton
-            }
-            camera?.cameraControl?.enableTorch(false)
-            videoMode = !videoMode
-            syncFlashButtonLabel()
-            videoModeButton.text = if (videoMode) "VIDEO MODE" else "PHOTO MODE"
-            captureButton.text = if (videoMode) "● REC" else "●"
-            startCamera()
-        }
-        videoQualityButton = smallButton("FHD") { cycleVideoQuality() }
-        videoFpsButton = smallButton("30 FPS") { cycleVideoFps() }
+        photoModeButton = smallButton("PHOTO") { setCameraMode(false) }
+        videoModeButton = smallButton("VIDEO") { setCameraMode(true) }
+        videoQualityButton = smallButton("VIDEO QUALITY: FHD") { cycleVideoQuality() }
+        videoFpsButton = smallButton("FRAME RATE: 30 FPS") { cycleVideoFps() }
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
-        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 52, 1.15f).apply { setMargins(3, 0, 3, 0) })
-        videoRow.addView(videoQualityButton, LinearLayout.LayoutParams(0, 52, 0.8f).apply { setMargins(3, 0, 3, 0) })
-        videoRow.addView(videoFpsButton, LinearLayout.LayoutParams(0, 52, 0.8f).apply { setMargins(3, 0, 3, 0) })
-        videoRow.addView(videoStabilizationButton, LinearLayout.LayoutParams(0, 52, 1.2f).apply { setMargins(3, 0, 3, 0) })
+        videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
+        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
         panel.addView(videoRow)
+        updateModeButtonAppearance()
+        advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 4, 3, 4) })
+        advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
+        advancedPanel.addView(videoStabilizationButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -550,6 +548,19 @@ class MainActivity : ComponentActivity() {
         syncFlashButtonLabel()
         mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 76, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(mainRow)
+        val advancedScroll = ScrollView(this).apply {
+            visibility = View.GONE
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(advancedPanel)
+        }
+        panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, (260 * resources.displayMetrics.density).toInt()))
+        val advancedToggleButton = smallButton("MORE CONTROLS") {
+            val show = advancedScroll.visibility != View.VISIBLE
+            advancedScroll.visibility = if (show) View.VISIBLE else View.GONE
+            (it as Button).text = if (show) "LESS CONTROLS" else "MORE CONTROLS"
+        }
+        panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, 46).apply { setMargins(4, 4, 4, 2) })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS     •     PINCH TO ZOOM"
             textSize = 11f
@@ -560,6 +571,27 @@ class MainActivity : ComponentActivity() {
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         panel.bringToFront()
         setContentView(root)
+    }
+
+    private fun setCameraMode(enableVideo: Boolean) {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing mode", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (videoMode == enableVideo) return
+        camera?.cameraControl?.enableTorch(false)
+        videoMode = enableVideo
+        captureButton.text = if (videoMode) "● REC" else "●"
+        captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
+        syncFlashButtonLabel()
+        updateModeButtonAppearance()
+        startCamera()
+    }
+
+    private fun updateModeButtonAppearance() {
+        if (!::photoModeButton.isInitialized || !::videoModeButton.isInitialized) return
+        photoModeButton.background = GradientDrawable().apply { cornerRadius = 22f; setColor(if (!videoMode) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
+        videoModeButton.background = GradientDrawable().apply { cornerRadius = 22f; setColor(if (videoMode) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
     }
 
     private fun syncFlashButtonLabel() {
@@ -882,7 +914,7 @@ class MainActivity : ComponentActivity() {
                 else -> supported.firstOrNull()
             }
             if (chosen != null) videoQuality = chosen
-            videoQualityButton.text = when (videoQuality) {
+            videoQualityButton.text = "VIDEO QUALITY: " + when (videoQuality) {
                 Quality.UHD -> "4K"
                 Quality.FHD -> "FHD"
                 Quality.HD -> "HD"
@@ -898,7 +930,7 @@ class MainActivity : ComponentActivity() {
                 manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
             } ?: emptyArray()
             if (availableFpsRanges.none { it.lower == videoFps && it.upper == videoFps }) videoFps = 30
-            videoFpsButton.text = "$videoFps FPS"
+            videoFpsButton.text = "FRAME RATE: $videoFps FPS"
             val stabilizationModes = id?.let {
                 manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
             } ?: intArrayOf(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
@@ -930,7 +962,7 @@ class MainActivity : ComponentActivity() {
         }
         val currentIndex = choices.indexOf(videoQuality).let { if (it < 0) 0 else it }
         videoQuality = choices[(currentIndex + 1) % choices.size]
-        videoQualityButton.text = when (videoQuality) {
+        videoQualityButton.text = "VIDEO QUALITY: " + when (videoQuality) {
             Quality.UHD -> "4K"
             Quality.FHD -> "FHD"
             Quality.HD -> "HD"
@@ -952,7 +984,7 @@ class MainActivity : ComponentActivity() {
         }
         val index = choices.indexOf(videoFps).let { if (it < 0) -1 else it }
         videoFps = choices[(index + 1) % choices.size]
-        videoFpsButton.text = "$videoFps FPS"
+        videoFpsButton.text = "FRAME RATE: $videoFps FPS"
         saveVideoPreferences()
         applyVideoRequestOptions()
     }
