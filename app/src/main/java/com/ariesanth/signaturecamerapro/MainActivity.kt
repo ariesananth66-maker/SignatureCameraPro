@@ -564,7 +564,7 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 84
+            minHeight = 92
             setPadding(4, 0, 4, 0)
             contentDescription = "Take photo"
             contentDescription = "Take photo or control video recording"
@@ -607,13 +607,22 @@ class MainActivity : ComponentActivity() {
         }
         mainRow.setPadding(4, 8, 4, 8)
         mainRow.addView(flip, LinearLayout.LayoutParams(0, 68, 1f).apply { setMargins(8, 0, 8, 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(84, 84))
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(92, 92))
         syncFlashButtonLabel()
         mainRow.addView(flashButton, LinearLayout.LayoutParams(0, 68, 1f).apply { setMargins(8, 0, 8, 0) })
-        panel.addView(mainRow)
-        panel.addView(videoRow)
-        videoRow.setPadding(18, 0, 18, 0)
+        // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
+        videoRow.setPadding(18, 6, 18, 8)
         videoRow.gravity = Gravity.CENTER
+        videoRow.background = GradientDrawable().apply {
+            cornerRadius = 28f
+            setColor(0x66242B36)
+            setStroke(1, 0x337F91A8)
+        }
+        videoRow.elevation = 4f
+        panel.addView(videoRow, LinearLayout.LayoutParams(-1, 54).apply {
+            setMargins(18, 2, 18, 2)
+        })
+        panel.addView(mainRow)
         val advancedScroll = ScrollView(this).apply {
             visibility = View.GONE
             isFillViewport = false
