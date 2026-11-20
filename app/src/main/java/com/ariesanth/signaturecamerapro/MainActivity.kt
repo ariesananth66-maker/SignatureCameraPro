@@ -183,6 +183,9 @@ class MainActivity : ComponentActivity() {
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
     }
 
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
     private fun buildCameraUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         previewView = PreviewView(this).apply {
@@ -254,7 +257,7 @@ class MainActivity : ComponentActivity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(12, 14, 12, 10)
+            setPadding(dp(12), dp(14), dp(12), dp(10))
             background = GradientDrawable().apply {
                 cornerRadius = 0f
                 colors = intArrayOf(0xDD05070B.toInt(), 0x0005070B)
@@ -273,7 +276,7 @@ class MainActivity : ComponentActivity() {
             textSize = 14f
             setTextColor(-1)
             gravity = Gravity.CENTER
-            setPadding(0, 6, 0, 2)
+            setPadding(0, dp(6), 0, dp(2))
         }
         zoomSlider = SeekBar(this).apply {
             max = 100
@@ -300,7 +303,7 @@ class MainActivity : ComponentActivity() {
             letterSpacing = 0.08f
             setTextColor(0xFFB8C7D9.toInt())
             gravity = Gravity.CENTER
-            setPadding(0, 3, 0, 2)
+            setPadding(0, dp(3), 0, dp(2))
             contentDescription = "Microphone recording level"
         }
         top.addView(title)
@@ -324,29 +327,29 @@ class MainActivity : ComponentActivity() {
             progressBackgroundTintList = ColorStateList.valueOf(0x55777777)
             contentDescription = "Live microphone input level"
         }
-        top.addView(audioLevelBar, LinearLayout.LayoutParams(144, 5).apply {
-            topMargin = 3
-            bottomMargin = 3
+        top.addView(audioLevelBar, LinearLayout.LayoutParams(dp(144), dp(5)).apply {
+            topMargin = dp(3)
+            bottomMargin = dp(3)
         })
         lensRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(6, 4, 6, 4)
+            setPadding(dp(6), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = 24f
                 setColor(0x55232B38)
                 setStroke(1, 0x447F91A8)
             }
         }
-        top.addView(lensRow, LinearLayout.LayoutParams(-1, 52).apply {
-            setMargins(18, 5, 18, 2)
+        top.addView(lensRow, LinearLayout.LayoutParams(-1, dp(52)).apply {
+            setMargins(dp(18), dp(5), dp(18), dp(2))
         })
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(18, 12, 18, 10)
+            setPadding(dp(18), dp(12), dp(18), dp(10))
             background = GradientDrawable().apply {
                 cornerRadii = floatArrayOf(34f, 34f, 34f, 34f, 34f, 34f, 34f, 34f)
                 colors = intArrayOf(0xF51A202A.toInt(), 0xF5090B10.toInt())
@@ -360,9 +363,9 @@ class MainActivity : ComponentActivity() {
         val advancedPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(4, 6, 4, 6)
+            setPadding(dp(4), dp(6), dp(4), dp(6))
         }
-        advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, 42))
+        advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, dp(42)))
         // Secondary settings are tucked away so the live viewfinder stays dominant.
         val exposureRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -374,15 +377,15 @@ class MainActivity : ComponentActivity() {
             textSize = 15f
             setTextColor(-1)
             gravity = Gravity.CENTER
-            setPadding(10, 0, 10, 0)
+            setPadding(dp(10), 0, dp(10), 0)
         }
         exposureLabel.contentDescription = "Exposure compensation. Tap to reset to zero EV."
         exposureLabel.isClickable = true
         exposureLabel.isFocusable = true
         exposureLabel.setOnClickListener { resetExposureCompensation() }
-        exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, 48, 1f))
-        exposureRow.addView(smallButton("−  EV") { changeExposure(-1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
-        exposureRow.addView(smallButton("+  EV") { changeExposure(1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
+        exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, dp(48), 1f))
+        exposureRow.addView(smallButton("−  EV") { changeExposure(-1) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
+        exposureRow.addView(smallButton("+  EV") { changeExposure(1) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         advancedPanel.addView(exposureRow)
 
         val utilityRow = LinearLayout(this).apply {
@@ -405,10 +408,10 @@ class MainActivity : ComponentActivity() {
         }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
         val galleryButton = smallButton("RECENT") { showRecentCaptures() }
-        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(2, 0, 2, 0) })
-        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
-        utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
-        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 0, 2, 0) })
+        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
         val proButton = smallButton("PRO CONTROLS") {
             if (!proModeEnabled && selectedPhotoExtension != null) {
                 Toast.makeText(this, "Turn off the OEM photo effect before using manual Pro controls", Toast.LENGTH_SHORT).show()
@@ -422,12 +425,12 @@ class MainActivity : ComponentActivity() {
                 applyManualCapture()
             } else resetManualCapture()
         }
-        utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
+        utilityRow.addView(proButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         advancedPanel.addView(utilityRow)
 
         photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
         photoExtensionButton.isEnabled = false
-        advancedPanel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 4, 3, 4) })
+        advancedPanel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), dp(4), dp(3), dp(4)) })
         val jpegQualityButton = smallButton("JPEG QUALITY: $jpegQuality%") {
             jpegQuality = when (jpegQuality) { 90 -> 95; 95 -> 100; else -> 90 }
             getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
@@ -436,11 +439,11 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "JPEG quality set to $jpegQuality%", Toast.LENGTH_SHORT).show()
             if (!videoMode) startCamera()
         }
-        advancedPanel.addView(jpegQualityButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
+        advancedPanel.addView(jpegQualityButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
 
         proPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(10, 8, 10, 8)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF172235.toInt()) }
             visibility = View.GONE
         }
@@ -477,9 +480,9 @@ class MainActivity : ComponentActivity() {
             })
         }
         proPanel.addView(isoValue)
-        proPanel.addView(isoSlider, LinearLayout.LayoutParams(-1, 40))
+        proPanel.addView(isoSlider, LinearLayout.LayoutParams(-1, dp(40)))
         proPanel.addView(shutterValue)
-        proPanel.addView(shutterSlider, LinearLayout.LayoutParams(-1, 40))
+        proPanel.addView(shutterSlider, LinearLayout.LayoutParams(-1, dp(40)))
         focusValue = TextView(this).apply { text = "FOCUS  AUTO"; textSize = 12f; setTextColor(-1) }
         focusSlider = SeekBar(this).apply {
             max = 1000
@@ -502,24 +505,24 @@ class MainActivity : ComponentActivity() {
             })
         }
         proPanel.addView(focusValue)
-        proPanel.addView(focusSlider, LinearLayout.LayoutParams(-1, 40))
+        proPanel.addView(focusSlider, LinearLayout.LayoutParams(-1, dp(40)))
         whiteBalanceButton = smallButton("WHITE BALANCE: AUTO") {
             cycleWhiteBalance()
         }
-        proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
+        proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(0, dp(4), 0, dp(4)) })
         sceneModeButton = smallButton("SCENE: AUTO") { cycleSceneMode() }
-        proPanel.addView(sceneModeButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
+        proPanel.addView(sceneModeButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(0, dp(4), 0, dp(4)) })
         proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
             (view as Button).isEnabled = false
             view.text = "CAPTURING RAW…"
             captureRawDng(view)
-        }, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 8, 0, 0) })
+        }, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(0, dp(8), 0, 0) })
         advancedPanel.addView(proPanel)
 
         val videoRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, 5, 0, 5)
+            setPadding(0, dp(5), 0, dp(5))
         }
         photoModeButton = smallButton("PHOTO") { setCameraMode(false) }
         videoModeButton = smallButton("VIDEO") { setCameraMode(true) }
@@ -531,12 +534,12 @@ class MainActivity : ComponentActivity() {
         }) { cycleVideoQuality() }
         videoFpsButton = smallButton("FRAME RATE: $videoFps FPS") { cycleVideoFps() }
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
-        videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
-        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, 50, 1f).apply { setMargins(4, 0, 4, 0) })
+        videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
+        videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         updateModeButtonAppearance()
-        advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 4, 3, 4) })
-        advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
-        advancedPanel.addView(videoStabilizationButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(3, 0, 3, 4) })
+        advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), dp(4), dp(3), dp(4)) })
+        advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
+        advancedPanel.addView(videoStabilizationButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -557,9 +560,9 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 58
+            minHeight = dp(58)
             contentDescription = "Switch front and rear camera"
-            setPadding(4, 0, 4, 0)
+            setPadding(dp(4), 0, dp(4), 0)
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (recording != null) {
@@ -590,8 +593,8 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 92
-            setPadding(4, 0, 4, 0)
+            minHeight = dp(92)
+            setPadding(dp(4), 0, dp(4), 0)
             contentDescription = "Take photo or control video recording"
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
@@ -607,8 +610,8 @@ class MainActivity : ComponentActivity() {
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
             minWidth = 0
-            minHeight = 58
-            setPadding(4, 0, 4, 0)
+            minHeight = dp(58)
+            setPadding(dp(4), 0, dp(4), 0)
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
@@ -650,7 +653,7 @@ class MainActivity : ComponentActivity() {
                 setStroke(1, 0x668FA6C4)
             }
             button.elevation = 5f
-            column.addView(button, LinearLayout.LayoutParams(58, 58))
+            column.addView(button, LinearLayout.LayoutParams(dp(58), dp(58)))
             val label = if (status) flashStatusLabel else TextView(this).apply {
                 text = caption
                 textSize = 10f
@@ -659,7 +662,7 @@ class MainActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 1
             }
-            column.addView(label, LinearLayout.LayoutParams(-1, 22))
+            column.addView(label, LinearLayout.LayoutParams(-1, dp(22)))
             return column
         }
         flashStatusLabel = TextView(this).apply {
@@ -669,14 +672,14 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             maxLines = 1
         }
-        mainRow.setPadding(10, 8, 10, 4)
+        mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
         mainRow.gravity = Gravity.CENTER
-        mainRow.addView(sideControl(flip, "CAMERA"), LinearLayout.LayoutParams(0, 82, 1f).apply { setMargins(8, 0, 8, 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(88, 88).apply { setMargins(10, 0, 10, 0) })
+        mainRow.addView(sideControl(flip, "CAMERA"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(88), dp(88)).apply { setMargins(dp(10), 0, dp(10), 0) })
         syncFlashButtonLabel()
-        mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, 82, 1f).apply { setMargins(8, 0, 8, 0) })
+        mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
-        videoRow.setPadding(18, 6, 18, 8)
+        videoRow.setPadding(dp(18), dp(6), dp(18), dp(8))
         videoRow.gravity = Gravity.CENTER
         videoRow.background = GradientDrawable().apply {
             cornerRadius = 28f
@@ -684,8 +687,8 @@ class MainActivity : ComponentActivity() {
             setStroke(1, 0x337F91A8)
         }
         videoRow.elevation = 4f
-        panel.addView(videoRow, LinearLayout.LayoutParams(-1, 54).apply {
-            setMargins(18, 2, 18, 2)
+        panel.addView(videoRow, LinearLayout.LayoutParams(-1, dp(54)).apply {
+            setMargins(dp(18), dp(2), dp(18), dp(2))
         })
         panel.addView(mainRow)
         val advancedScroll = ScrollView(this).apply {
@@ -700,7 +703,7 @@ class MainActivity : ComponentActivity() {
             advancedScroll.visibility = if (show) View.VISIBLE else View.GONE
             (it as Button).text = if (show) "LESS CONTROLS" else "MORE CONTROLS"
         }
-        panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, 46).apply { setMargins(4, 4, 4, 2) })
+        panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(4), dp(4), dp(2)) })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS     •     PINCH TO ZOOM"
             textSize = 11f
@@ -816,9 +819,9 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = 56
+            minHeight = dp(48)
             contentDescription = label
-            setPadding(12, 0, 12, 0)
+            setPadding(dp(12), 0, dp(12), 0)
             setOnClickListener { action(it) }
         }
 
@@ -862,7 +865,7 @@ class MainActivity : ComponentActivity() {
                 setStroke(1, if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF70B5FF.toInt() else 0x668FA6C4)
             }
             button.minWidth = 0
-            button.minHeight = 44
+            button.minHeight = dp(44)
             button.setPadding(8, 0, 8, 0)
             button.elevation = 3f
             // Never label a clamped digital zoom as a different physical lens preset.
@@ -894,7 +897,7 @@ class MainActivity : ComponentActivity() {
                 updateLensSelection(ratio)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             }
-            lensRow.addView(button, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
+            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(3, 0, 3, 0) })
         }
     }
 
