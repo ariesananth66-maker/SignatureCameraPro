@@ -69,6 +69,7 @@ import kotlin.math.pow
 class MainActivity : ComponentActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var gridView: GridOverlay
+    private lateinit var focusOverlay: FocusOverlay
     private lateinit var zoomLabel: TextView
     private lateinit var exposureLabel: TextView
     private lateinit var lensRow: LinearLayout
@@ -134,6 +135,12 @@ class MainActivity : ComponentActivity() {
         gridView = GridOverlay(this)
         gridView.visibility = View.GONE
         root.addView(gridView, FrameLayout.LayoutParams(-1, -1))
+        focusOverlay = FocusOverlay(this).apply {
+            visibility = View.GONE
+            isClickable = false
+            isFocusable = false
+        }
+        root.addView(focusOverlay, FrameLayout.LayoutParams(-1, -1))
 
         val scaleDetector = android.view.ScaleGestureDetector(this,
             object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -624,6 +631,7 @@ class MainActivity : ComponentActivity() {
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
             .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         activeCamera.cameraControl.startFocusAndMetering(action)
+        focusOverlay.showAt(x, y)
         Toast.makeText(this, "Focusing…", Toast.LENGTH_SHORT).show()
     }
 
@@ -1334,6 +1342,46 @@ class MainActivity : ComponentActivity() {
             canvas.drawLine(w * 2f / 3f, 0f, w * 2f / 3f, h, paint)
             canvas.drawLine(0f, h / 3f, w, h / 3f, paint)
             canvas.drawLine(0f, h * 2f / 3f, w, h * 2f / 3f, paint)
+        }
+    }
+
+    private class FocusOverlay(context: android.content.Context) : View(context) {
+        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFD54F.toInt()
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+        private val cornerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFD54F.toInt()
+            strokeWidth = 5f
+            strokeCap = Paint.Cap.ROUND
+            style = Paint.Style.STROKE
+        }
+        private var focusX = 0f
+        private var focusY = 0f
+
+        fun showAt(x: Float, y: Float) {
+            focusX = x
+            focusY = y
+            visibility = View.VISIBLE
+            invalidate()
+            animate().cancel()
+            alpha = 1f
+            animate().alpha(0f).setStartDelay(900).setDuration(250).withEndAction {
+                visibility = View.GONE
+                alpha = 1f
+            }.start()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val radius = 34f
+            canvas.drawCircle(focusX, focusY, radius, ringPaint)
+            val length = 13f
+            canvas.drawLine(focusX - radius, focusY, focusX - radius + length, focusY, cornerPaint)
+            canvas.drawLine(focusX + radius - length, focusY, focusX + radius, focusY, cornerPaint)
+            canvas.drawLine(focusX, focusY - radius, focusX, focusY - radius + length, cornerPaint)
+            canvas.drawLine(focusX, focusY + radius - length, focusX, focusY + radius, cornerPaint)
         }
     }
 
