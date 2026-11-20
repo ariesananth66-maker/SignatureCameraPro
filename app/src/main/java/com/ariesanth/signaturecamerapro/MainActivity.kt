@@ -130,6 +130,14 @@ class MainActivity : ComponentActivity() {
         val cameraPrefs = getSharedPreferences("signature_camera_settings", MODE_PRIVATE)
         gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
         timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
+        videoQuality = when (cameraPrefs.getString("video_quality", "FHD")) {
+            "UHD" -> Quality.UHD
+            "HD" -> Quality.HD
+            "SD" -> Quality.SD
+            else -> Quality.FHD
+        }
+        videoFps = cameraPrefs.getInt("video_fps", 30).let { if (it == 60) 60 else 30 }
+        videoStabilizationEnabled = cameraPrefs.getBoolean("video_stabilization", false)
         buildCameraUi()
         if (hasCameraPermission()) startCamera()
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
@@ -760,6 +768,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun saveVideoPreferences() {
+        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+            .putString("video_quality", when (videoQuality) {
+                Quality.UHD -> "UHD"
+                Quality.HD -> "HD"
+                Quality.SD -> "SD"
+                else -> "FHD"
+            })
+            .putInt("video_fps", videoFps)
+            .putBoolean("video_stabilization", videoStabilizationEnabled)
+            .apply()
+    }
+
     private fun updateVideoCapabilities() {
         val activeCamera = camera ?: return
         try {
@@ -799,6 +820,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 videoStabilizationButton.text = if (videoStabilizationEnabled) "STABILIZATION ON" else "STABILIZATION OFF"
             }
+            saveVideoPreferences()
             applyVideoRequestOptions()
         } catch (e: Exception) {
             Toast.makeText(this, "Video capabilities unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -825,6 +847,7 @@ class MainActivity : ComponentActivity() {
             Quality.HD -> "HD"
             else -> "SD"
         }
+        saveVideoPreferences()
         if (recording == null) startCamera()
     }
 
@@ -841,6 +864,7 @@ class MainActivity : ComponentActivity() {
         val index = choices.indexOf(videoFps).let { if (it < 0) -1 else it }
         videoFps = choices[(index + 1) % choices.size]
         videoFpsButton.text = "$videoFps FPS"
+        saveVideoPreferences()
         applyVideoRequestOptions()
     }
 
@@ -855,6 +879,7 @@ class MainActivity : ComponentActivity() {
         }
         videoStabilizationEnabled = !videoStabilizationEnabled
         videoStabilizationButton.text = if (videoStabilizationEnabled) "STABILIZATION ON" else "STABILIZATION OFF"
+        saveVideoPreferences()
         applyVideoRequestOptions()
     }
 
