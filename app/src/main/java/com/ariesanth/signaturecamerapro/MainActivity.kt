@@ -306,6 +306,11 @@ class MainActivity : ComponentActivity() {
             setPadding(0, dp(3), 0, dp(2))
             contentDescription = "Microphone recording level"
         }
+        // Compact iPhone-inspired status strip: keep the live viewfinder dominant.
+        title.text = "SIGNATURE"
+        title.textSize = 12f
+        title.letterSpacing = 0.24f
+        title.alpha = 0.82f
         top.addView(title)
         top.addView(zoomLabel)
         recordingTimer = android.widget.Chronometer(this).apply {
@@ -320,6 +325,7 @@ class MainActivity : ComponentActivity() {
         }
         top.addView(recordingTimer)
         top.addView(audioLevelLabel)
+        audioLevelLabel.visibility = View.GONE
         audioLevelBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
@@ -331,6 +337,7 @@ class MainActivity : ComponentActivity() {
             topMargin = dp(3)
             bottomMargin = dp(3)
         })
+        audioLevelBar.visibility = View.GONE
         lensRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -341,22 +348,24 @@ class MainActivity : ComponentActivity() {
                 setStroke(1, 0x447F91A8)
             }
         }
-        top.addView(lensRow, LinearLayout.LayoutParams(-1, dp(52)).apply {
-            setMargins(dp(18), dp(5), dp(18), dp(2))
-        })
+        // Lens selector is floated above the bottom camera dock, like a native camera app.
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            setMargins(dp(30), 0, dp(30), dp(238))
+        })
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(12), dp(18), dp(10))
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            // Minimal translucent camera dock; the preview remains edge-to-edge.
             background = GradientDrawable().apply {
-                cornerRadii = floatArrayOf(34f, 34f, 34f, 34f, 34f, 34f, 34f, 34f)
-                colors = intArrayOf(0xF51A202A.toInt(), 0xF5090B10.toInt())
+                cornerRadii = floatArrayOf(30f, 30f, 30f, 30f, 0f, 0f, 0f, 0f)
+                colors = intArrayOf(0xE90A0D13.toInt(), 0xF5090B10.toInt())
                 orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(1, 0x668FA6C4)
+                setStroke(1, 0x337F91A8)
             }
-            elevation = 18f
+            elevation = 14f
             clipChildren = false
             clipToPadding = false
         }
@@ -679,12 +688,12 @@ class MainActivity : ComponentActivity() {
         syncFlashButtonLabel()
         mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
-        videoRow.setPadding(dp(18), dp(6), dp(18), dp(8))
+        videoRow.setPadding(dp(18), dp(3), dp(18), dp(3))
         videoRow.gravity = Gravity.CENTER
         videoRow.background = GradientDrawable().apply {
-            cornerRadius = 28f
-            setColor(0x66242B36)
-            setStroke(1, 0x337F91A8)
+            cornerRadius = 24f
+            setColor(0x44242B36)
+            setStroke(1, 0x227F91A8)
         }
         videoRow.elevation = 4f
         panel.addView(videoRow, LinearLayout.LayoutParams(-1, dp(54)).apply {
@@ -698,21 +707,24 @@ class MainActivity : ComponentActivity() {
             addView(advancedPanel)
         }
         panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, (260 * resources.displayMetrics.density).toInt()))
-        val advancedToggleButton = smallButton("MORE CONTROLS") {
+        val advancedToggleButton = smallButton("⚙  CAMERA SETTINGS") {
             val show = advancedScroll.visibility != View.VISIBLE
             advancedScroll.visibility = if (show) View.VISIBLE else View.GONE
-            (it as Button).text = if (show) "LESS CONTROLS" else "MORE CONTROLS"
+            (it as Button).text = if (show) "⌃  HIDE SETTINGS" else "⚙  CAMERA SETTINGS"
         }
         panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(4), dp(4), dp(2)) })
         val hint = TextView(this).apply {
-            text = "TAP TO FOCUS     •     PINCH TO ZOOM"
-            textSize = 11f
+            text = "TAP TO FOCUS   •   PINCH TO ZOOM"
+            textSize = 10f
             setTextColor(0xFFBBBBBB.toInt())
             gravity = Gravity.CENTER
         }
         panel.addView(hint)
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        // Ensure the floating lens rail stays above the shutter dock.
+        lensRow.bringToFront()
         panel.bringToFront()
+        lensRow.bringToFront()
         setContentView(root)
     }
 
