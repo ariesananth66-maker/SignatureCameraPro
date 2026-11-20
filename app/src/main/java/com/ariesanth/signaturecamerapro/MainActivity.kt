@@ -795,6 +795,11 @@ class MainActivity : ComponentActivity() {
             captureButton.text = "SAVING…"
             return
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST)
+            Toast.makeText(this, "Allow microphone access to record video with sound", Toast.LENGTH_LONG).show()
+            return
+        }
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, "Signature_Video_$stamp.mp4")
@@ -808,6 +813,7 @@ class MainActivity : ComponentActivity() {
             .build()
         try {
             recording = activeVideo.output.prepareRecording(this, output)
+                .withAudioEnabled()
                 .start(ContextCompat.getMainExecutor(this)) { event ->
                     when (event) {
                         is VideoRecordEvent.Start -> {
@@ -1669,6 +1675,9 @@ class MainActivity : ComponentActivity() {
         if (requestCode == CAMERA_PERMISSION_REQUEST) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) startCamera()
             else Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_LONG).show()
+        } else if (requestCode == AUDIO_PERMISSION_REQUEST) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED && videoMode) toggleVideoRecording()
+            else Toast.makeText(this, "Microphone permission denied; video audio cannot be recorded", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1742,5 +1751,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val CAMERA_PERMISSION_REQUEST = 1001
+        private const val AUDIO_PERMISSION_REQUEST = 1002
     }
 }
