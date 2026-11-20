@@ -1040,7 +1040,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val info = MediaCodec.BufferInfo().apply { set(0, size, ex.sampleTime, ex.sampleFlags) }
                     buf.position(0); buf.limit(size)
-                    muxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
+                    muxer?.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
                     ex.advance()
                     if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
                 }
