@@ -142,6 +142,8 @@ class MainActivity : ComponentActivity() {
         }
         videoFps = cameraPrefs.getInt("video_fps", 30).let { if (it == 60) 60 else 30 }
         videoStabilizationEnabled = cameraPrefs.getBoolean("video_stabilization", false)
+        manualIso = cameraPrefs.getInt("manual_iso", 400).coerceIn(50, 51200)
+        manualShutterNs = cameraPrefs.getLong("manual_shutter_ns", 10_000_000L).coerceIn(1_000L, 1_000_000_000L)
         buildCameraUi()
         if (hasCameraPermission()) startCamera()
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
@@ -343,7 +345,10 @@ class MainActivity : ComponentActivity() {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     manualIso = (activeIsoMin + (activeIsoMax - activeIsoMin) * progress / 100f).toInt().coerceIn(activeIsoMin, activeIsoMax)
                     isoValue.text = "ISO $manualIso"
-                    if (fromUser && proModeEnabled) applyManualCapture()
+                    if (fromUser) {
+                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_iso", manualIso).apply()
+                        if (proModeEnabled) applyManualCapture()
+                    }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -356,7 +361,10 @@ class MainActivity : ComponentActivity() {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     manualShutterNs = shutterNsFromProgress(progress)
                     shutterValue.text = "SHUTTER ${formatShutter(manualShutterNs)}"
-                    if (fromUser && proModeEnabled) applyManualCapture()
+                    if (fromUser) {
+                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putLong("manual_shutter_ns", manualShutterNs).apply()
+                        if (proModeEnabled) applyManualCapture()
+                    }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
