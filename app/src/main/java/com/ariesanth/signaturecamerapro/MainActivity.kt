@@ -1019,10 +1019,11 @@ class MainActivity : ComponentActivity() {
             uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error("Gallery output unavailable")
             val pfd = contentResolver.openFileDescriptor(uri, "w") ?: error("Cannot open gallery output")
             pfd.use {
-                muxer = MediaMuxer(it.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-                val outVideo = muxer.addTrack(video.getTrackFormat(vt))
-                val outAudio = muxer.addTrack(audio.getTrackFormat(at))
-                muxer.start()
+                val activeMuxer = MediaMuxer(it.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                muxer = activeMuxer
+                val outVideo = activeMuxer.addTrack(video.getTrackFormat(vt))
+                val outAudio = activeMuxer.addTrack(audio.getTrackFormat(at))
+                activeMuxer.start()
                 video.selectTrack(vt); audio.selectTrack(at)
                 val vb = java.nio.ByteBuffer.allocate(1024 * 1024)
                 val ab = java.nio.ByteBuffer.allocate(256 * 1024)
@@ -1040,13 +1041,13 @@ class MainActivity : ComponentActivity() {
                     }
                     val info = MediaCodec.BufferInfo().apply { set(0, size, ex.sampleTime, ex.sampleFlags) }
                     buf.position(0); buf.limit(size)
-                    muxer?.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
+                    activeMuxer.writeSampleData(if (useVideo) outVideo else outAudio, buf, info)
                     ex.advance()
                     if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
                 }
-                muxer.stop()
+                activeMuxer.stop()
             }
-            muxer.release(); muxer = null
+            muxer?.release(); muxer = null
             if (android.os.Build.VERSION.SDK_INT >= 29) {
                 contentResolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
             }
