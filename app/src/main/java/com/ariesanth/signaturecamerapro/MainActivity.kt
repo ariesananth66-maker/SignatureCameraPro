@@ -851,13 +851,19 @@ class MainActivity : ComponentActivity() {
             button.minHeight = 44
             button.setPadding(8, 0, 8, 0)
             button.elevation = 3f
-            // OEM extensions can change the active camera pipeline; avoid presenting
-            // optical-lens presets as reliable while a vendor effect is active.
-            button.isEnabled = selectedPhotoExtension == null
-            button.alpha = if (button.isEnabled) 1f else 0.45f
-            button.contentDescription = if (button.isEnabled)
-                "Switch logical rear camera to the $label lens view"
-            else "Lens presets are temporarily unavailable while an OEM photo effect is active"
+            // Never label a clamped digital zoom as a different physical lens preset.
+            // Keep presets disabled when the active CameraX logical camera cannot reach them.
+            val zoomState = camera?.cameraInfo?.zoomState?.value
+            val inSupportedRange = zoomState != null &&
+                ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio
+            val extensionBlocksLensSwitch = selectedPhotoExtension != null
+            button.isEnabled = inSupportedRange && !extensionBlocksLensSwitch
+            button.alpha = if (button.isEnabled) 1f else 0.42f
+            button.contentDescription = when {
+                extensionBlocksLensSwitch -> "$label lens preset unavailable while an OEM photo effect is active"
+                !inSupportedRange -> "$label lens preset is outside the supported zoom range"
+                else -> "Switch logical rear camera to the $label lens view"
+            }
             button.setOnClickListener {
                 if (selectedPhotoExtension != null) {
                     Toast.makeText(this, "Turn off the OEM photo effect to use lens presets", Toast.LENGTH_SHORT).show()
@@ -865,10 +871,13 @@ class MainActivity : ComponentActivity() {
                 }
                 if (cameraSelector != CameraSelector.DEFAULT_BACK_CAMERA) return@setOnClickListener
                 val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
-                val target = ratio.coerceIn(state.minZoomRatio, state.maxZoomRatio)
-                camera?.cameraControl?.setZoomRatio(target)
+                if (ratio < state.minZoomRatio || ratio > state.maxZoomRatio) {
+                    Toast.makeText(this, "$label is outside the supported zoom range", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                camera?.cameraControl?.setZoomRatio(ratio)
                 zoomLabel.text = "LENS VIEW  $label"
-                updateLensSelection(target)
+                updateLensSelection(ratio)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             }
             lensRow.addView(button, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
