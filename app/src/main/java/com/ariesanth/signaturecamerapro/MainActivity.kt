@@ -961,18 +961,22 @@ class MainActivity : ComponentActivity() {
 
     private fun updatePhotoExtensionLabel() {
         if (!::photoExtensionButton.isInitialized) return
-        val label = when (selectedPhotoExtension) {
-            ExtensionMode.BOKEH -> "BOKEH"
-            ExtensionMode.NIGHT -> "NIGHT"
-            ExtensionMode.HDR -> "HDR"
+        val label = when {
+            !extensionsInitialized -> "CHECKING…"
+            supportedPhotoExtensions.isEmpty() -> "NOT AVAILABLE"
+            selectedPhotoExtension == ExtensionMode.BOKEH -> "BOKEH"
+            selectedPhotoExtension == ExtensionMode.NIGHT -> "NIGHT"
+            selectedPhotoExtension == ExtensionMode.HDR -> "HDR"
             else -> "OFF"
         }
         photoExtensionButton.text = "PHOTO EFFECT: $label"
-        photoExtensionButton.contentDescription = when (selectedPhotoExtension) {
-            ExtensionMode.BOKEH -> "OEM camera Bokeh extension enabled"
-            ExtensionMode.NIGHT -> "OEM camera Night extension enabled"
-            ExtensionMode.HDR -> "OEM camera HDR extension enabled"
-            else -> "OEM camera effects disabled"
+        photoExtensionButton.contentDescription = when {
+            !extensionsInitialized -> "Checking manufacturer camera effects"
+            supportedPhotoExtensions.isEmpty() -> "This camera does not expose Bokeh, Night or HDR extensions"
+            selectedPhotoExtension == ExtensionMode.BOKEH -> "OEM camera Bokeh extension enabled"
+            selectedPhotoExtension == ExtensionMode.NIGHT -> "OEM camera Night extension enabled"
+            selectedPhotoExtension == ExtensionMode.HDR -> "OEM camera HDR extension enabled"
+            else -> "OEM camera effects disabled; tap to choose an available effect"
         }
         photoExtensionButton.isEnabled = extensionsInitialized && supportedPhotoExtensions.isNotEmpty() && !videoMode
     }
