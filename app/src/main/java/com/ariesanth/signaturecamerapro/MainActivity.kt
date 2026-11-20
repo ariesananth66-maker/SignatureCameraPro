@@ -57,7 +57,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
-import androidx.camera.core.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
