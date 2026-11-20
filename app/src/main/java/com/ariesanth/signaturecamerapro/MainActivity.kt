@@ -143,10 +143,17 @@ class MainActivity : ComponentActivity() {
         val cameraPrefs = getSharedPreferences("signature_camera_settings", MODE_PRIVATE)
         gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
         timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
-        jpegQuality = cameraPrefs.getInt("jpeg_quality", 95).let { if (it == 90 || it == 95 || it == 100) it else 95 }
+        if (!cameraPrefs.getBoolean("quality_profile_upgrade_v1", false)) {
+            cameraPrefs.edit()
+                .putBoolean("quality_profile_upgrade_v1", true)
+                .putInt("jpeg_quality", 100)
+                .putString("video_quality", "UHD")
+                .apply()
+        }
+        jpegQuality = cameraPrefs.getInt("jpeg_quality", 100).let { if (it == 90 || it == 95 || it == 100) it else 100 }
         photoFlashMode = cameraPrefs.getInt("photo_flash_mode", ImageCapture.FLASH_MODE_OFF).let { if (it == ImageCapture.FLASH_MODE_AUTO || it == ImageCapture.FLASH_MODE_ON || it == ImageCapture.FLASH_MODE_OFF) it else ImageCapture.FLASH_MODE_OFF }
         screenFlashEnabled = cameraPrefs.getBoolean("screen_flash_enabled", true)
-        videoQuality = when (cameraPrefs.getString("video_quality", "FHD")) {
+        videoQuality = when (cameraPrefs.getString("video_quality", "UHD")) {
             "UHD" -> Quality.UHD
             "HD" -> Quality.HD
             "SD" -> Quality.SD
