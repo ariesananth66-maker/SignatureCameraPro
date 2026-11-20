@@ -731,7 +731,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (videoMode == enableVideo) return
+        // Mode rebinding disables the hardware torch; clear its UI state as well.
         camera?.cameraControl?.enableTorch(false)
+        torchEnabled = false
         videoMode = enableVideo
         captureButton.text = if (videoMode) "● REC" else "●"
         captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
