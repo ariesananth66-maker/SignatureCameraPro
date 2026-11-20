@@ -351,9 +351,12 @@ class MainActivity : ComponentActivity() {
         }
         // Lens selector is floated above the bottom camera dock, like a native camera app.
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-        root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-            setMargins(dp(30), 0, dp(30), dp(238))
-        })
+        val landscapeLayout = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        if (!landscapeLayout) {
+            root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                setMargins(dp(30), 0, dp(30), dp(238))
+            })
+        }
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -708,7 +711,8 @@ class MainActivity : ComponentActivity() {
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             addView(advancedPanel)
         }
-        panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, (260 * resources.displayMetrics.density).toInt()))
+        val advancedSettingsHeight = if (landscapeLayout) dp(104) else dp(260)
+        panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, advancedSettingsHeight))
         fun positionLensRailAboveDock() {
             // Keep the lens selector completely clear of the dock in both collapsed
             // and expanded states; a fixed margin caused it to sit behind settings.
@@ -724,6 +728,13 @@ class MainActivity : ComponentActivity() {
             (it as Button).text = if (show) "⌃  HIDE SETTINGS" else "⚙  CAMERA SETTINGS"
             positionLensRailAboveDock()
         }
+        if (landscapeLayout) {
+            // In landscape, keep the lens rail inside the dock so it cannot be
+            // pushed underneath the top status strip by the expanded settings sheet.
+            panel.addView(lensRow, 0, LinearLayout.LayoutParams(-1, dp(44)).apply {
+                setMargins(dp(12), dp(2), dp(12), dp(2))
+            })
+        }
         panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(4), dp(4), dp(2)) })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS   •   PINCH TO ZOOM"
@@ -736,9 +747,11 @@ class MainActivity : ComponentActivity() {
         // Recalculate after the dock has been measured so the floating lens rail
         // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
-        positionLensRailAboveDock()
-        panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        if (!landscapeLayout) {
             positionLensRailAboveDock()
+            panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                positionLensRailAboveDock()
+            }
         }
         lensRow.bringToFront()
     }
