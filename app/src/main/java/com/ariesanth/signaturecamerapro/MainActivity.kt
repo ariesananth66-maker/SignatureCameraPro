@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var gridView: GridOverlay
     private lateinit var focusOverlay: FocusOverlay
     private lateinit var zoomLabel: TextView
+    private lateinit var audioLevelLabel: TextView
     private lateinit var exposureLabel: TextView
     private lateinit var lensRow: LinearLayout
     private lateinit var proPanel: LinearLayout
@@ -104,7 +105,6 @@ class MainActivity : ComponentActivity() {
     private var micAmplitudeTotal = 0.0
     private var micAmplitudeSamples = 0
     private var micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
-    private var zoomLabelBeforeRecording: String? = null
     private var videoMode = false
     private var videoQuality = Quality.FHD
     private var videoFps = 30
@@ -281,8 +281,18 @@ class MainActivity : ComponentActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+        audioLevelLabel = TextView(this).apply {
+            text = "MIC  •  READY"
+            textSize = 11f
+            letterSpacing = 0.08f
+            setTextColor(0xFFB8C7D9.toInt())
+            gravity = Gravity.CENTER
+            setPadding(0, 3, 0, 2)
+            contentDescription = "Microphone recording level"
+        }
         top.addView(title)
         top.addView(zoomLabel)
+        top.addView(audioLevelLabel)
         lensRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, 4, 0, 2) }
         top.addView(lensRow, LinearLayout.LayoutParams(-1, 44))
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
@@ -899,7 +909,6 @@ class MainActivity : ComponentActivity() {
         micAmplitudeTotal = 0.0
         micAmplitudeSamples = 0
         micAudioState = androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED
-        zoomLabelBeforeRecording = zoomLabel.text.toString()
         try {
             recording = activeVideo.output.prepareRecording(this, output)
                 .withAudioEnabled()
@@ -907,7 +916,7 @@ class MainActivity : ComponentActivity() {
                     when (event) {
                         is VideoRecordEvent.Start -> {
                             captureButton.text = "■ STOP"
-                            zoomLabel.text = "MIC LEVEL  •  MEASURING…"
+                            audioLevelLabel.text = "MIC  •  MEASURING…"
                             Toast.makeText(this, "Video recording started", Toast.LENGTH_SHORT).show()
                         }
                         is VideoRecordEvent.Status -> {
@@ -918,17 +927,15 @@ class MainActivity : ComponentActivity() {
                                 micPeakAmplitude = maxOf(micPeakAmplitude, amplitude)
                                 micAmplitudeTotal += amplitude
                                 micAmplitudeSamples += 1
-                                zoomLabel.text = "MIC LEVEL  ${(amplitude * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
+                                audioLevelLabel.text = "MIC  ${(amplitude * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
                             } else {
-                                zoomLabel.text = "MIC AUDIO  •  NOT ACTIVE"
+                                audioLevelLabel.text = "MIC AUDIO  •  NOT ACTIVE"
                             }
                         }
                         is VideoRecordEvent.Finalize -> {
                             recording = null
                             captureButton.isEnabled = true
                             captureButton.text = "● REC"
-                            zoomLabelBeforeRecording?.let { zoomLabel.text = it }
-                            zoomLabelBeforeRecording = null
                             val average = if (micAmplitudeSamples > 0) micAmplitudeTotal / micAmplitudeSamples else 0.0
                             val stateLabel = when (micAudioState) {
                                 androidx.camera.video.AudioStats.AUDIO_STATE_ACTIVE -> "ACTIVE"
@@ -938,7 +945,8 @@ class MainActivity : ComponentActivity() {
                                 androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR -> "ENCODER ERROR"
                                 else -> "UNAVAILABLE"
                             }
-                            val diagnostic = "Mic $stateLabel • avg ${(average * 100).toInt()}% • peak ${(micPeakAmplitude * 100).toInt()}%"
+                            val diagnostic = "MIC $stateLabel  •  AVG ${(average * 100).toInt()}%  •  PEAK ${(micPeakAmplitude * 100).toInt()}%"
+                            audioLevelLabel.text = diagnostic
                             if (event.hasError()) {
                                 Toast.makeText(this, "Video failed: ${event.error} • $diagnostic", Toast.LENGTH_LONG).show()
                             } else {
@@ -951,6 +959,7 @@ class MainActivity : ComponentActivity() {
             recording = null
             captureButton.isEnabled = true
             captureButton.text = "● REC"
+            audioLevelLabel.text = "MIC  •  START FAILED"
             Toast.makeText(this, "Cannot start video: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
