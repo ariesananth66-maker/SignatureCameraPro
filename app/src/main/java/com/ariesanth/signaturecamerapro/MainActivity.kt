@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var focusValue: TextView
     private lateinit var focusSlider: SeekBar
     private lateinit var whiteBalanceButton: Button
+    private lateinit var sceneModeButton: Button
     private lateinit var videoModeButton: Button
     private lateinit var videoQualityButton: Button
     private lateinit var videoFpsButton: Button
@@ -96,6 +97,8 @@ class MainActivity : ComponentActivity() {
     private var minimumFocusDistance = 0f
     private var manualFocusDiopters = 0f
     private var supportedAwbModes = intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO)
+    private var supportedSceneModes = intArrayOf(CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
+    private var sceneModeIndex = 0
     private var awbModeIndex = 0
     private var manualFocusEnabled = false
     private var proModeEnabled = false
@@ -306,6 +309,8 @@ class MainActivity : ComponentActivity() {
             cycleWhiteBalance()
         }
         proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
+        sceneModeButton = smallButton("SCENE: AUTO") { cycleSceneMode() }
+        proPanel.addView(sceneModeButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
         proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
             (view as Button).isEnabled = false
             view.text = "CAPTURING RAW…"
@@ -812,6 +817,46 @@ class MainActivity : ComponentActivity() {
         if (proModeEnabled) applyManualCapture()
     }
 
+    private fun cycleSceneMode() {
+        if (supportedSceneModes.size <= 1) {
+            Toast.makeText(this, "Portrait/Night scene modes are not exposed by this camera", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (proModeEnabled) {
+            Toast.makeText(this, "Turn off Pro controls before changing scene mode", Toast.LENGTH_SHORT).show()
+            return
+        }
+        sceneModeIndex = (sceneModeIndex + 1) % supportedSceneModes.size
+        val mode = supportedSceneModes[sceneModeIndex]
+        try {
+            val activeCamera = camera ?: return
+            val builder = CaptureRequestOptions.Builder()
+            if (mode == CaptureRequest.CONTROL_SCENE_MODE_DISABLED) {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
+            } else {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_USE_SCENE_MODE)
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, mode)
+            }
+            Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(builder.build())
+            updateSceneModeLabel()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Scene mode unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun updateSceneModeLabel() {
+        if (!::sceneModeButton.isInitialized) return
+        val mode = supportedSceneModes.getOrElse(sceneModeIndex) { CaptureRequest.CONTROL_SCENE_MODE_DISABLED }
+        val label = when (mode) {
+            CaptureRequest.CONTROL_SCENE_MODE_PORTRAIT -> "PORTRAIT"
+            CaptureRequest.CONTROL_SCENE_MODE_NIGHT -> "NIGHT"
+            else -> "AUTO"
+        }
+        sceneModeButton.text = "SCENE: $label"
+        sceneModeButton.isEnabled = supportedSceneModes.size > 1
+    }
+
     private fun changeExposure(delta: Int) {
         val activeCamera = camera ?: return
         val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
@@ -882,6 +927,18 @@ class MainActivity : ComponentActivity() {
                 .let { modes -> if (modes.contains(CaptureRequest.CONTROL_AWB_MODE_AUTO)) modes else intArrayOf(CaptureRequest.CONTROL_AWB_MODE_AUTO) + modes }
             awbModeIndex = 0
             whiteBalanceButton.text = "WHITE BALANCE: AUTO"
+            val availableScenes = characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES)
+                ?: intArrayOf(CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
+            val preferredScenes = listOf(
+                CaptureRequest.CONTROL_SCENE_MODE_DISABLED,
+                CaptureRequest.CONTROL_SCENE_MODE_PORTRAIT,
+                CaptureRequest.CONTROL_SCENE_MODE_NIGHT
+            )
+            supportedSceneModes = preferredScenes.filter {
+                it == CaptureRequest.CONTROL_SCENE_MODE_DISABLED || availableScenes.contains(it)
+            }.toIntArray()
+            sceneModeIndex = 0
+            updateSceneModeLabel()
             characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)?.let {
                 activeIsoMin = it.lower
                 activeIsoMax = it.upper
