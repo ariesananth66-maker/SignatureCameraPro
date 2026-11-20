@@ -269,6 +269,10 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(10, 0, 10, 0)
         }
+        exposureLabel.contentDescription = "Exposure compensation. Tap to reset to zero EV."
+        exposureLabel.isClickable = true
+        exposureLabel.isFocusable = true
+        exposureLabel.setOnClickListener { resetExposureCompensation() }
         exposureRow.addView(exposureLabel, LinearLayout.LayoutParams(0, 48, 1f))
         exposureRow.addView(smallButton("−  EV") { changeExposure(-1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
         exposureRow.addView(smallButton("+  EV") { changeExposure(1) }, LinearLayout.LayoutParams(0, 46, 1f).apply { setMargins(3, 0, 3, 0) })
@@ -983,6 +987,15 @@ class MainActivity : ComponentActivity() {
         sceneModeButton.text = "SCENE: $label"
         sceneModeButton.contentDescription = "Camera hardware scene preset: $label. Not computational portrait blur or multi-frame night processing."
         sceneModeButton.isEnabled = supportedSceneModes.size > 1
+    }
+
+    private fun resetExposureCompensation() {
+        val activeCamera = camera ?: return
+        val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
+        exposureIndex = 0.coerceIn(range.lower, range.upper)
+        activeCamera.cameraControl.setExposureCompensationIndex(exposureIndex)
+        exposureLabel.text = "EV  0.0"
+        Toast.makeText(this, "Exposure reset to 0 EV", Toast.LENGTH_SHORT).show()
     }
 
     private fun changeExposure(delta: Int) {
