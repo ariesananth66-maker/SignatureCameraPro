@@ -1249,8 +1249,10 @@ class MainActivity : ComponentActivity() {
                     }
                     buf.clear()
                     val read = ex.readSampleData(buf, 0)
-                    if (read < 0) {
-                        if (useVideo) vTime = -1 else aTime = -1
+                    if (read <= 0) {
+                        // Empty samples are not valid muxer payloads; advance safely without writing them.
+                        ex.advance()
+                        if (useVideo) vTime = ex.sampleTime else aTime = ex.sampleTime
                         continue
                     }
                     val ptsOffsetUs = if (useVideo) videoPtsOffsetUs else audioPtsOffsetUs
