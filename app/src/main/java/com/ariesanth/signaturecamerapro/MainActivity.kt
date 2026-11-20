@@ -1226,7 +1226,10 @@ class MainActivity : ComponentActivity() {
                 var videoBuffer = java.nio.ByteBuffer.allocate(0)
                 var audioBuffer = java.nio.ByteBuffer.allocate(0)
                 while (vTime >= 0 || aTime >= 0) {
-                    val useVideo = aTime < 0 || (vTime >= 0 && vTime <= aTime)
+                    // Choose the next sample by its adjusted timestamp, not the raw per-file PTS.
+                    val alignedVideoTimeUs = if (vTime >= 0) vTime + videoPtsOffsetUs else Long.MAX_VALUE
+                    val alignedAudioTimeUs = if (aTime >= 0) aTime + audioPtsOffsetUs else Long.MAX_VALUE
+                    val useVideo = aTime < 0 || (vTime >= 0 && alignedVideoTimeUs <= alignedAudioTimeUs)
                     val ex = if (useVideo) video else audio
                     val sampleSize = ex.sampleSize
                     if (sampleSize < 0L || sampleSize > Int.MAX_VALUE) {
