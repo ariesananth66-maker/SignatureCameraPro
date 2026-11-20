@@ -90,6 +90,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoFpsButton: Button
     private lateinit var videoStabilizationButton: Button
     private lateinit var captureButton: Button
+    private lateinit var flashButton: Button
+    private var photoFlashMode = ImageCapture.FLASH_MODE_OFF
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var videoMode = false
@@ -136,6 +138,7 @@ class MainActivity : ComponentActivity() {
         gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
         timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
         jpegQuality = cameraPrefs.getInt("jpeg_quality", 95).let { if (it == 90 || it == 95 || it == 100) it else 95 }
+        photoFlashMode = cameraPrefs.getInt("photo_flash_mode", ImageCapture.FLASH_MODE_OFF).let { if (it in ImageCapture.FLASH_MODE_OFF..ImageCapture.FLASH_MODE_ON) it else ImageCapture.FLASH_MODE_OFF }
         videoQuality = when (cameraPrefs.getString("video_quality", "FHD")) {
             "UHD" -> Quality.UHD
             "HD" -> Quality.HD
@@ -489,8 +492,8 @@ class MainActivity : ComponentActivity() {
             contentDescription = "Take photo or control video recording"
             setOnClickListener { triggerCaptureAction() }
         }
-        val flash = Button(this).apply {
-            text = "FLASH OFF"
+        flashButton = Button(this).apply {
+            text = when (photoFlashMode) { ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"; ImageCapture.FLASH_MODE_ON -> "FLASH ON"; else -> "FLASH OFF" }
             isAllCaps = false
             textSize = 12f
             setTextColor(android.graphics.Color.WHITE)
@@ -509,9 +512,14 @@ class MainActivity : ComponentActivity() {
                     text = if (enabled) "TORCH ON" else "TORCH OFF"
                 } else {
                     val image = imageCapture ?: return@setOnClickListener
-                    val enabled = image.flashMode != ImageCapture.FLASH_MODE_ON
-                    image.flashMode = if (enabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
-                    text = if (enabled) "FLASH ON" else "FLASH OFF"
+                    photoFlashMode = when (photoFlashMode) {
+                        ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO
+                        ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON
+                        else -> ImageCapture.FLASH_MODE_OFF
+                    }
+                    image.flashMode = photoFlashMode
+                    getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("photo_flash_mode", photoFlashMode).apply()
+                    text = when (photoFlashMode) { ImageCapture.FLASH_MODE_AUTO -> "FLASH AUTO"; ImageCapture.FLASH_MODE_ON -> "FLASH ON"; else -> "FLASH OFF" }
                 }
             }
         }
@@ -1144,7 +1152,7 @@ class MainActivity : ComponentActivity() {
                     imageCapture = ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setJpegQuality(jpegQuality)
-                        .setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                        .setFlashMode(photoFlashMode)
                         .build()
                     camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
                     refreshPhotoExtensions()
