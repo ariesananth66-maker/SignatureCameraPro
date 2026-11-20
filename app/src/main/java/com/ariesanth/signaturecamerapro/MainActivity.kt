@@ -325,9 +325,10 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(18, 12, 18, 10)
             background = GradientDrawable().apply {
-                cornerRadii = floatArrayOf(30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f)
-                setColor(0xD9090B10.toInt())
-                setStroke(1, 0x44FFFFFF)
+                cornerRadii = floatArrayOf(34f, 34f, 34f, 34f, 34f, 34f, 34f, 34f)
+                colors = intArrayOf(0xF51A202A.toInt(), 0xF5090B10.toInt())
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                setStroke(1, 0x668FA6C4)
             }
             elevation = 18f
             clipChildren = false
@@ -654,8 +655,26 @@ class MainActivity : ComponentActivity() {
 
     private fun updateModeButtonAppearance() {
         if (!::photoModeButton.isInitialized || !::videoModeButton.isInitialized) return
-        photoModeButton.background = GradientDrawable().apply { cornerRadius = 22f; setColor(if (!videoMode) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
-        videoModeButton.background = GradientDrawable().apply { cornerRadius = 22f; setColor(if (videoMode) 0xFF1677FF.toInt() else 0xFF344054.toInt()) }
+        fun modeBackground(selected: Boolean) = GradientDrawable().apply {
+            cornerRadius = 24f
+            setColor(if (selected) 0xFF1677FF.toInt() else 0xCC202630.toInt())
+            setStroke(if (selected) 2 else 1, if (selected) 0xFF9BC5FF.toInt() else 0x557F8DA3)
+        }
+        photoModeButton.background = modeBackground(!videoMode)
+        videoModeButton.background = modeBackground(videoMode)
+        photoModeButton.alpha = if (videoMode) 0.78f else 1f
+        videoModeButton.alpha = if (videoMode) 1f else 0.78f
+        photoModeButton.text = if (videoMode) "PHOTO" else "●  PHOTO"
+        videoModeButton.text = if (videoMode) "●  VIDEO" else "VIDEO"
+        if (::captureButton.isInitialized && recording == null) {
+            captureButton.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (videoMode) 0xFFE84B55.toInt() else 0xFFF5F5F5.toInt())
+                setStroke(5, if (videoMode) 0xFFFFB3B8.toInt() else 0xFF9AA4B2.toInt())
+            }
+            captureButton.setTextColor(if (videoMode) android.graphics.Color.WHITE else 0xFF20242B.toInt())
+            captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
+        }
     }
 
     private fun syncFlashButtonLabel() {
