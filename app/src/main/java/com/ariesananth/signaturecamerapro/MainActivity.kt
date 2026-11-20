@@ -2,6 +2,9 @@ package com.ariesananth.signaturecamerapro
 
 import android.Manifest
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.CaptureRequestOptions
 import android.hardware.camera2.CameraManager
 import android.graphics.ImageFormat
 import android.content.ContentValues
@@ -46,6 +49,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var zoomLabel: TextView
     private lateinit var exposureLabel: TextView
     private lateinit var lensRow: LinearLayout
+    private lateinit var proPanel: LinearLayout
+    private lateinit var isoValue: TextView
+    private lateinit var shutterValue: TextView
+    private var manualIso = 400
+    private var manualShutterMs = 10
+    private var proModeEnabled = false
     private var imageCapture: ImageCapture? = null
     private var camera: Camera? = null
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -165,7 +174,52 @@ class MainActivity : ComponentActivity() {
         utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
         utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
         utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
+        val proButton = smallButton("PRO CONTROLS") {
+            proModeEnabled = !proModeEnabled
+            proPanel.visibility = if (proModeEnabled) View.VISIBLE else View.GONE
+            (it as Button).text = if (proModeEnabled) "PRO ON" else "PRO CONTROLS"
+            if (!proModeEnabled) resetManualCapture()
+        }
+        utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 42, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(utilityRow)
+
+        proPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(10, 8, 10, 8)
+            background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF172235.toInt()) }
+            visibility = View.GONE
+        }
+        isoValue = TextView(this).apply { text = "ISO 400"; textSize = 12f; setTextColor(-1) }
+        val isoSlider = SeekBar(this).apply {
+            max = 100; progress = 25
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    manualIso = (100 + progress * 127).coerceIn(100, 12800)
+                    isoValue.text = "ISO $manualIso"
+                    if (fromUser && proModeEnabled) applyManualCapture()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        shutterValue = TextView(this).apply { text = "SHUTTER 10 ms"; textSize = 12f; setTextColor(-1) }
+        val shutterSlider = SeekBar(this).apply {
+            max = 100; progress = 6
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    manualShutterMs = (1 + progress * 1.59f).toInt().coerceIn(1, 160)
+                    shutterValue.text = "SHUTTER ${manualShutterMs} ms"
+                    if (fromUser && proModeEnabled) applyManualCapture()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        proPanel.addView(isoValue)
+        proPanel.addView(isoSlider, LinearLayout.LayoutParams(-1, 40))
+        proPanel.addView(shutterValue)
+        proPanel.addView(shutterSlider, LinearLayout.LayoutParams(-1, 40))
+        panel.addView(proPanel)
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -428,6 +482,27 @@ class MainActivity : ComponentActivity() {
             .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         activeCamera.cameraControl.startFocusAndMetering(action)
         Toast.makeText(this, "Focusing…", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun applyManualCapture() {
+        val activeCamera = camera ?: return
+        try {
+            val options = CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manualIso)
+                .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, manualShutterMs * 1_000_000L)
+                .build()
+            Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(options)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Manual exposure unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun resetManualCapture() {
+        try {
+            val activeCamera = camera ?: return
+            Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
+        } catch (_: Exception) { }
     }
 
     private fun changeExposure(delta: Int) {
