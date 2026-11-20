@@ -42,6 +42,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.pow
 
 class MainActivity : ComponentActivity() {
     private lateinit var previewView: PreviewView
@@ -602,7 +603,7 @@ class MainActivity : ComponentActivity() {
         val max = activeShutterMaxNs.toDouble().coerceAtLeast(min)
         if (max <= min) return min.toLong()
         val fraction = progress.coerceIn(0, 1000) / 1000.0
-        return (min * kotlin.math.pow(max / min, fraction)).toLong().coerceIn(activeShutterMinNs, activeShutterMaxNs)
+        return (min * (max / min).pow(fraction)).toLong().coerceIn(activeShutterMinNs, activeShutterMaxNs)
     }
 
     private fun shutterProgressFromNs(value: Long): Int {
