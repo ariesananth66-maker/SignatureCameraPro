@@ -12,6 +12,7 @@ import android.media.Image
 import android.media.ImageReader
 import java.io.File
 import android.net.Uri
+import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import android.hardware.camera2.CameraManager
@@ -1505,6 +1506,44 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Ask the device camera HAL for its best supported still-image noise/detail
+    // processing. Unsupported modes are never forced, and OEM extensions keep
+    // ownership of their own Night/HDR processing pipeline.
+    private fun applyStillImageQualityOptions(builder: ImageCapture.Builder) {
+        if (selectedPhotoExtension != null) return
+        try {
+            val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+            val desiredFacing = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
+                CameraCharacteristics.LENS_FACING_FRONT
+            } else {
+                CameraCharacteristics.LENS_FACING_BACK
+            }
+            val cameraId = manager.cameraIdList.firstOrNull { id ->
+                manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == desiredFacing
+            } ?: return
+            val characteristics = manager.getCameraCharacteristics(cameraId)
+            val noiseModes = characteristics.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
+                ?: intArrayOf()
+            val edgeModes = characteristics.get(CameraCharacteristics.EDGE_AVAILABLE_EDGE_MODES)
+                ?: intArrayOf()
+            val extender = Camera2Interop.Extender(builder)
+            if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
+                extender.setCaptureRequestOption(
+                    CaptureRequest.NOISE_REDUCTION_MODE,
+                    CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                )
+            }
+            if (edgeModes.contains(CaptureRequest.EDGE_MODE_HIGH_QUALITY)) {
+                extender.setCaptureRequestOption(
+                    CaptureRequest.EDGE_MODE,
+                    CaptureRequest.EDGE_MODE_HIGH_QUALITY
+                )
+            }
+        } catch (_: Exception) {
+            // Fall back to the camera vendor's default still-image pipeline.
+        }
+    }
+
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
@@ -1535,12 +1574,13 @@ class MainActivity : ComponentActivity() {
                         .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
                         .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
                         .build()
-                    imageCapture = ImageCapture.Builder()
+                    val imageBuilder = ImageCapture.Builder()
                         .setResolutionSelector(photoResolution)
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
-                        .build()
+                    applyStillImageQualityOptions(imageBuilder)
+                    imageCapture = imageBuilder.build()
                     camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
                     refreshPhotoExtensions()
                 }
@@ -1570,7 +1610,13 @@ class MainActivity : ComponentActivity() {
                     try {
                         provider.unbindAll()
                         val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-                        imageCapture = ImageCapture.Builder().setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build()).setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(jpegQuality).setFlashMode(photoFlashMode).build()
+                        val fallbackImageBuilder = ImageCapture.Builder()
+                            .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build())
+                            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                            .setJpegQuality(jpegQuality)
+                            .setFlashMode(photoFlashMode)
+                        applyStillImageQualityOptions(fallbackImageBuilder)
+                        imageCapture = fallbackImageBuilder.build()
                         camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
                         updateManualRanges()
                     } catch (fallback: Exception) {
