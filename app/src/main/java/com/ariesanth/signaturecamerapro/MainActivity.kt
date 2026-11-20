@@ -275,6 +275,10 @@ class MainActivity : ComponentActivity() {
         utilityRow.addView(proButton, LinearLayout.LayoutParams(0, 48, 1f).apply { setMargins(3, 0, 3, 0) })
         panel.addView(utilityRow)
 
+        photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
+        photoExtensionButton.isEnabled = false
+        panel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(3, 4, 3, 4) })
+
         proPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(10, 8, 10, 8)
@@ -336,9 +340,6 @@ class MainActivity : ComponentActivity() {
         proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
         sceneModeButton = smallButton("SCENE: AUTO") { cycleSceneMode() }
         proPanel.addView(sceneModeButton, LinearLayout.LayoutParams(-1, 44).apply { setMargins(0, 4, 0, 4) })
-        photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
-        photoExtensionButton.isEnabled = false
-        proPanel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 4, 0, 4) })
         proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
             (view as Button).isEnabled = false
             view.text = "CAPTURING RAW…"
