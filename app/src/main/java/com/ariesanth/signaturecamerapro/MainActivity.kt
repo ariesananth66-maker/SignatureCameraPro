@@ -1314,8 +1314,17 @@ class MainActivity : ComponentActivity() {
 
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
-            val provider = providerFuture.get()
-            provider.unbindAll()
+            val provider = try {
+                providerFuture.get().also { it.unbindAll() }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    trigger.isEnabled = true
+                    trigger.text = "CAPTURE RAW / DNG"
+                    Toast.makeText(this, "RAW camera setup failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    startCamera()
+                }
+                return@addListener
+            }
 
             var device: CameraDevice? = null
             var session: CameraCaptureSession? = null
@@ -1641,6 +1650,18 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
             }
         })
+    }
+
+    override fun onStop() {
+        countdownRunnable?.let { handler.removeCallbacks(it) }
+        countdownRunnable = null
+        countdownActive = false
+        if (::captureButton.isInitialized && captureButton.text.toString().startsWith("CANCEL")) {
+            captureButton.text = if (videoMode) "● REC" else "●"
+            captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
+            captureButton.isEnabled = true
+        }
+        super.onStop()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
