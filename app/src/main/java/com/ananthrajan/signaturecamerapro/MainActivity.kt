@@ -804,13 +804,13 @@ class MainActivity : ComponentActivity() {
         flashButton = Button(this).apply {
             text = "⚡"
             isAllCaps = false
-            textSize = 24f
+            textSize = 20f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
             minWidth = 0
-            minHeight = dp(58)
-            setPadding(dp(4), 0, dp(4), 0)
+            minHeight = dp(40)
+            setPadding(dp(2), 0, dp(2), 0)
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
@@ -945,7 +945,10 @@ class MainActivity : ComponentActivity() {
             positionLensRailAboveDock()
         }
         settingsToggleButton = advancedToggleButton
-        advancedToggleButton.textSize = 19f
+        advancedToggleButton.textSize = 17f
+        advancedToggleButton.minWidth = 0
+        advancedToggleButton.minHeight = dp(40)
+        advancedToggleButton.setPadding(0, 0, 0, 0)
         advancedToggleButton.contentDescription = "Open camera settings"
         if (landscapeLayout) {
             // In landscape, keep the lens rail inside the dock so it cannot be
