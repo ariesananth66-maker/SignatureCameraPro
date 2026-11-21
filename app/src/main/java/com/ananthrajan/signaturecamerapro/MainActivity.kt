@@ -60,6 +60,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCase
+import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -1721,6 +1723,29 @@ class MainActivity : ComponentActivity() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    // Bind preview and capture use cases to one PreviewView viewport. This makes
+    // CameraX apply a shared crop rectangle instead of letting the saved still
+    // image use a wider sensor frame than the FILL_CENTER viewfinder.
+    private fun bindCameraUseCases(
+        provider: ProcessCameraProvider,
+        selector: CameraSelector,
+        preview: Preview,
+        vararg useCases: UseCase
+    ): Camera {
+        val viewPort = previewView.viewPort
+        if (viewPort != null) {
+            val group = UseCaseGroup.Builder()
+                .setViewPort(viewPort)
+                .addUseCase(preview)
+                .apply { useCases.forEach { addUseCase(it) } }
+                .build()
+            return provider.bindToLifecycle(this, selector, group)
+        }
+        // If the view has not produced a viewport yet, preserve the previous
+        // binding path rather than delaying camera startup or failing capture.
+        return provider.bindToLifecycle(this, selector, preview, *useCases)
+    }
+
     @OptIn(ExperimentalAudioApi::class)
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
@@ -1742,8 +1767,9 @@ class MainActivity : ComponentActivity() {
                         recorderBuilder.setAudioProcessors(listOf(VoiceNoiseReductionProcessor()))
                     }
                     val recorder = recorderBuilder.build()
-                    videoCapture = VideoCapture.withOutput(recorder)
-                    camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
+                    val videoUseCase = VideoCapture.withOutput(recorder)
+                    videoCapture = videoUseCase
+                    camera = bindCameraUseCases(provider, cameraSelector, preview, videoUseCase)
                     updateVideoCapabilities()
                     photoExtensionButton.isEnabled = false
                 } else {
@@ -1759,8 +1785,9 @@ class MainActivity : ComponentActivity() {
                         .setFlashMode(photoFlashMode)
                     applyStillImageQualityOptions(imageBuilder)
                     applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
-                    imageCapture = imageBuilder.build()
-                    camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
+                    val stillUseCase = imageBuilder.build()
+                    imageCapture = stillUseCase
+                    camera = bindCameraUseCases(provider, activeSelector, preview, stillUseCase)
                     refreshPhotoExtensions()
                 }
                 camera?.cameraInfo?.zoomState?.observe(this) { state ->
@@ -1796,8 +1823,9 @@ class MainActivity : ComponentActivity() {
                             .setJpegQuality(jpegQuality)
                             .setFlashMode(photoFlashMode)
                         applyStillImageQualityOptions(fallbackImageBuilder)
-                        imageCapture = fallbackImageBuilder.build()
-                        camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
+                        val fallbackStillUseCase = fallbackImageBuilder.build()
+                        imageCapture = fallbackStillUseCase
+                        camera = bindCameraUseCases(provider, cameraSelector, fallbackPreview, fallbackStillUseCase)
                         refreshPhotoExtensions()
                         updateManualRanges()
                         updateScreenFlashPreview()
@@ -1818,8 +1846,9 @@ class MainActivity : ComponentActivity() {
                             .setFlashMode(photoFlashMode)
                         applyStillImageQualityOptions(fallbackImageBuilder)
                         applyUltraHdrIfSupported(fallbackImageBuilder, provider, cameraSelector)
-                        imageCapture = fallbackImageBuilder.build()
-                        camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
+                        val fallbackStillUseCase = fallbackImageBuilder.build()
+                        imageCapture = fallbackStillUseCase
+                        camera = bindCameraUseCases(provider, cameraSelector, fallbackPreview, fallbackStillUseCase)
                         updateManualRanges()
                     } catch (fallback: Exception) {
                         Toast.makeText(this, "Unable to start camera: ${fallback.localizedMessage}", Toast.LENGTH_LONG).show()
