@@ -42,9 +42,18 @@ class CameraXController {
     }
 
     fun setTorch(enabled: Boolean): ListenableFuture<Void>? {
-        val camera = activeCamera ?: return null
+        // Keep the selected UI state even while the camera is being rebound.
         uiState = uiState.copy(torchEnabled = enabled)
+        val camera = activeCamera ?: return null
         return camera.cameraControl.enableTorch(enabled)
+    }
+
+    fun setPhotoFlashMode(mode: Int) {
+        uiState = uiState.copy(photoFlashMode = mode)
+    }
+
+    fun setVideoMode(enabled: Boolean) {
+        uiState = uiState.copy(isVideoMode = enabled)
     }
 
     fun isAttached(): Boolean = activeCamera != null
