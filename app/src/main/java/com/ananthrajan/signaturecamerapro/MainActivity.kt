@@ -154,6 +154,8 @@ class MainActivity : ComponentActivity() {
     private var exposureIndex = 0
     private val handler = Handler(Looper.getMainLooper())
     private var countdownActive = false
+    private var viewportRetryCount = 0
+    private var cameraStartGeneration = 0L
     private var countdownRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1750,8 +1752,21 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalAudioApi::class)
     private fun startCamera() {
+        val generation = ++cameraStartGeneration
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
+            if (generation != cameraStartGeneration || isFinishing || isDestroyed) return@addListener
+            // PreviewView can be measured before its transformation info (and
+            // therefore its ViewPort) is ready. Retry briefly rather than
+            // silently binding preview and still capture with unrelated crops.
+            if (previewView.viewPort == null && viewportRetryCount < 10) {
+                viewportRetryCount++
+                previewView.postDelayed({
+                    if (generation == cameraStartGeneration && !isFinishing && !isDestroyed) startCamera()
+                }, 50L)
+                return@addListener
+            }
+            if (previewView.viewPort != null) viewportRetryCount = 0
             val provider = future.get()
             initializePhotoExtensions(provider)
             val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }

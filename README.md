@@ -5,7 +5,7 @@ Native Android camera application built with Kotlin and CameraX.
 ## Current app
 
 - App ID: `com.ananthrajan.signaturecamerapro`
-- Current source version: **1.1.9** (version code 20)
+- Current source version: **1.2.0** (version code 21)
 - Minimum Android version: Android 8.0 (API 26)
 - Compile / target SDK: 36
 - JDK: 17
@@ -14,7 +14,7 @@ Native Android camera application built with Kotlin and CameraX.
 
 - CameraX live preview with rear/front switching
 - Still photo capture using CameraX maximum-quality mode and the highest available 4:3 resolution strategy
-- Shared PreviewView viewport for preview and capture crop alignment when the view has a valid viewport
+- Shared PreviewView viewport for preview and capture crop alignment, with a short readiness retry before binding
 - Flash controls, front-camera screen flash, tap-to-focus, pinch zoom, and exposure compensation
 - Pro controls for manual focus and other Camera2 capabilities where the device exposes them
 - Optional RAW/DNG capture only when the selected camera advertises RAW support
