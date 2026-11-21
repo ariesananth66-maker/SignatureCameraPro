@@ -245,6 +245,16 @@ class MainActivity : ComponentActivity() {
                 return@post
             }
 
+            // FULL uses the entire viewfinder as its crop target. FIT_CENTER
+            // letterboxes the front sensor inside this tall frame; fill the shared
+            // ViewPort in FULL so preview and still capture use the same framing.
+            previewView.scaleType = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA &&
+                (videoMode || cameraXController.uiState.photoAspectRatio != PhotoAspectRatio.FULL)) {
+                PreviewView.ScaleType.FIT_CENTER
+            } else {
+                PreviewView.ScaleType.FILL_CENTER
+            }
+
             val captureAspect = if (videoMode) {
                 if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_4_3) 4f / 3f else 16f / 9f
             } else {
