@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var mainControlsRow: LinearLayout
     private lateinit var dockHint: TextView
     private lateinit var captureButton: Button
+    private lateinit var galleryThumbnailView: ImageView
     private lateinit var flashButton: Button
     private lateinit var flashStatusLabel: TextView
     private lateinit var topChrome: LinearLayout
@@ -740,26 +741,26 @@ class MainActivity : ComponentActivity() {
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(-1, -2)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, dp(84))
             clipChildren = false
             clipToPadding = false
             elevation = 16f
         }
         val flip = Button(this).apply {
-            text = "↻"
+            text = "⟳"
             isAllCaps = false
-            textSize = 28f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textSize = 29f
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
             setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = 30f; setColor(0x663A414D); setStroke(1, 0x66FFFFFF) }
-            elevation = 8f
+            background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+            elevation = 0f
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = dp(58)
+            minHeight = 0
             contentDescription = "Switch front and rear camera"
-            setPadding(dp(4), 0, dp(4), 0)
+            setPadding(0, 0, 0, 0)
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (recording != null) {
@@ -794,8 +795,9 @@ class MainActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             minWidth = 0
-            minHeight = dp(88)
-            setPadding(dp(4), 0, dp(4), 0)
+            minHeight = 0
+            includeFontPadding = false
+            setPadding(0, 0, 0, 0)
             contentDescription = "Take photo or control video recording"
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
@@ -843,29 +845,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        fun sideControl(button: Button, caption: String, status: Boolean = false): LinearLayout {
+        fun sideControl(button: View, caption: String, status: Boolean = false): LinearLayout {
             val column = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
                 clipChildren = false
                 clipToPadding = false
+                setPadding(0, dp(18), 0, 0)
             }
-            button.background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(0xFF222225.toInt())
-                setStroke(1, 0xFF343438.toInt())
-            }
-            button.elevation = 5f
-            column.addView(button, LinearLayout.LayoutParams(dp(56), dp(56)))
+            button.elevation = 0f
+            column.addView(button, LinearLayout.LayoutParams(dp(48), dp(48)))
             val label = if (status) flashStatusLabel else TextView(this).apply {
                 text = caption
-                textSize = 10f
-                letterSpacing = 0.06f
-                setTextColor(0xFFD4DCE8.toInt())
+                textSize = 9f
+                letterSpacing = 0.08f
+                setTextColor(0xFFB8B8BE.toInt())
                 gravity = Gravity.CENTER
                 maxLines = 1
             }
-            column.addView(label, LinearLayout.LayoutParams(-1, dp(22)))
+            column.addView(label, LinearLayout.LayoutParams(-1, dp(18)))
             return column
         }
         flashStatusLabel = TextView(this).apply {
@@ -878,33 +876,36 @@ class MainActivity : ComponentActivity() {
         mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
         mainRow.gravity = Gravity.CENTER
-        val dockGalleryButton = Button(this).apply {
-            text = "▣"
-            textSize = 25f
-            isAllCaps = false
-            setTextColor(android.graphics.Color.WHITE)
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF222225.toInt()); setStroke(1, 0xFF343438.toInt()) }
-            minWidth = 0
-            minHeight = dp(56)
-            setPadding(dp(4), 0, dp(4), 0)
-            contentDescription = "Open recent photos and videos"
-            setOnClickListener { showRecentCaptures() }
+        galleryThumbnailView = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0xFF242428.toInt())
+            }
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            setImageResource(android.R.drawable.ic_menu_gallery)
+            contentDescription = "Open phone photo gallery"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { openPhotoGalleryDirectly() }
         }
-        // Three-point dock: Gallery and Flip share equal side columns while
-        // the shutter stays geometrically centered. Flash lives in the top bar.
-        mainRow.addView(sideControl(dockGalleryButton, "GALLERY"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(82), dp(88)).apply { setMargins(dp(8), 0, dp(8), 0) })
-        mainRow.addView(sideControl(flip, "FLIP"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
+        // Three equally weighted dock positions keep both side controls balanced
+        // around a fixed 76dp shutter. Side icons share the shutter's vertical axis.
+        mainRow.setPadding(dp(10), 0, dp(10), 0)
+        mainRow.addView(sideControl(galleryThumbnailView, "GALLERY"), LinearLayout.LayoutParams(0, dp(84), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(76), dp(76)).apply { gravity = Gravity.CENTER_VERTICAL })
+        mainRow.addView(sideControl(flip, "FLIP"), LinearLayout.LayoutParams(0, dp(84), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         syncFlashButtonLabel()
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
         videoRow.setPadding(dp(18), dp(3), dp(18), dp(3))
         videoRow.gravity = Gravity.CENTER
-        videoRow.background = GradientDrawable().apply {
-            cornerRadius = dp(24).toFloat()
-            setColor(0xFF141416.toInt())
-            setStroke(dp(1), 0xFF303034.toInt())
-        }
-        videoRow.elevation = 4f
+        videoRow.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        videoRow.elevation = 0f
         panel.addView(videoRow, LinearLayout.LayoutParams(-1, dp(54)).apply {
             setMargins(dp(18), dp(2), dp(18), dp(2))
         })
@@ -949,6 +950,9 @@ class MainActivity : ComponentActivity() {
         advancedToggleButton.minHeight = dp(40)
         advancedToggleButton.setPadding(0, 0, 0, 0)
         advancedToggleButton.contentDescription = "Open camera settings"
+        advancedToggleButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        advancedToggleButton.elevation = 0f
+        advancedToggleButton.setTextColor(android.graphics.Color.WHITE)
         if (landscapeLayout) {
             // In landscape, keep the lens rail inside the dock so it cannot be
             // pushed underneath the top status strip by the expanded settings sheet.
@@ -960,6 +964,8 @@ class MainActivity : ComponentActivity() {
         title.gravity = Gravity.CENTER_VERTICAL or Gravity.START
         title.textSize = 10f
         title.letterSpacing = 0.16f
+        flashButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        flashButton.elevation = 0f
         topHeader.addView(flashButton, LinearLayout.LayoutParams(dp(42), dp(42)))
         ratioQuickButton = smallButton("4:3") {
             if (videoMode) selectVideoAspectRatio(if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_16_9) VideoAspectRatio.RATIO_4_3 else VideoAspectRatio.RATIO_16_9)
@@ -969,9 +975,13 @@ class MainActivity : ComponentActivity() {
                 PhotoAspectRatio.FULL -> PhotoAspectRatio.RATIO_4_3
             })
         }.apply { textSize = 10f; setPadding(dp(3), 0, dp(3), 0) }
+        ratioQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        ratioQuickButton.elevation = 0f
         topHeader.addView(ratioQuickButton, LinearLayout.LayoutParams(dp(54), dp(40)).apply { leftMargin = dp(3) })
         modeQuickButton = smallButton("PHOTO") { if (videoMode) cycleVideoQuality() else cyclePhotoExtension() }
             .apply { textSize = 9f; setPadding(dp(2), 0, dp(2), 0) }
+        modeQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        modeQuickButton.elevation = 0f
         topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
         topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(42)).apply { leftMargin = dp(3) })
         val hint = TextView(this).apply {
@@ -1013,6 +1023,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         lensRow.bringToFront()
+        top.bringToFront()
+        advancedToggleButton.bringToFront()
+        refreshGalleryThumbnail()
         updateChromeForAspectRatio()
         updateModeSpecificSettings()
         updateQuickTopControls()
@@ -1095,7 +1108,7 @@ class MainActivity : ComponentActivity() {
         updateModeButtonAppearance()
         updateModeSpecificSettings()
         updateChromeForAspectRatio()
-        setSettingsExpanded(false)
+        // Keep the settings sheet's current open/closed state across PHOTO/VIDEO changes.
         updatePreviewAspectRatioFrame { startCamera() }
     }
 
@@ -1236,7 +1249,9 @@ class MainActivity : ComponentActivity() {
                 setColor(if (videoMode) 0xFFFF3B50.toInt() else android.graphics.Color.WHITE)
             }
         }
-        val inset = ((captureButton.width.takeIf { it > 0 } ?: 88) * if (isRecording) 0.30f else 0.22f).toInt()
+        // The dock gives this view an exact 76x76dp square. A 7dp inset leaves
+        // a true 62x62dp inner circle; recording uses a compact stop-square.
+        val inset = if (isRecording) dp(23) else dp(7)
         captureButton.background = android.graphics.drawable.LayerDrawable(arrayOf(outer, inner)).apply {
             setLayerInset(1, inset, inset, inset, inset)
         }
@@ -2603,6 +2618,82 @@ class MainActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun queryLatestPhotoUri(): Uri? {
+        val projection = arrayOf(MediaStore.Images.Media._ID)
+        return try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                "${MediaStore.Images.Media.DISPLAY_NAME} LIKE ?",
+                arrayOf("Signature_%"),
+                "${MediaStore.Images.Media.DATE_ADDED} DESC"
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val id = cursor.getLong(0)
+                    android.content.ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id
+                    )
+                } else null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun refreshGalleryThumbnail() {
+        if (!::galleryThumbnailView.isInitialized) return
+        val uri = queryLatestPhotoUri()
+        galleryThumbnailView.tag = uri
+        if (uri == null) {
+            galleryThumbnailView.setImageResource(android.R.drawable.ic_menu_gallery)
+            return
+        }
+        Thread {
+            val bitmap = try {
+                val id = uri.lastPathSegment?.toLongOrNull()
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    contentResolver.loadThumbnail(uri, android.util.Size(dp(96), dp(96)), null)
+                } else if (id != null) {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Thumbnails.getThumbnail(
+                        contentResolver, id, MediaStore.Images.Thumbnails.MINI_KIND, null
+                    )
+                } else null
+            } catch (_: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (!isFinishing && ::galleryThumbnailView.isInitialized && galleryThumbnailView.tag == uri) {
+                    if (bitmap != null) galleryThumbnailView.setImageBitmap(bitmap)
+                    else galleryThumbnailView.setImageResource(android.R.drawable.ic_menu_gallery)
+                }
+            }
+        }.start()
+    }
+
+    private fun openPhotoGalleryDirectly() {
+        val latestUri = queryLatestPhotoUri()
+        val viewIntent = latestUri?.let {
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(it, "image/*")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        try {
+            if (viewIntent != null) {
+                startActivity(viewIntent)
+            } else {
+                startActivity(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" })
+            }
+        } catch (_: android.content.ActivityNotFoundException) {
+            try {
+                startActivity(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" })
+            } catch (_: android.content.ActivityNotFoundException) {
+                Toast.makeText(this, "No photo gallery app is available", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun showRecentCaptures() {
         data class CaptureItem(val title: String, val uri: Uri, val mime: String, val added: Long)
         val items = mutableListOf<CaptureItem>()
@@ -2801,6 +2892,7 @@ class MainActivity : ComponentActivity() {
                         val saved = try { saveFullFramePhoto(image) } catch (_: Exception) { false } finally { image.close() }
                         if (useScreenFlash) hideScreenFlash()
                         if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        if (saved) refreshGalleryThumbnail()
                         Toast.makeText(this@MainActivity, if (saved) "FULL photo saved to Gallery" else "FULL photo save failed", Toast.LENGTH_SHORT).show()
                     }
                     override fun onError(exception: ImageCaptureException) {
@@ -2814,6 +2906,7 @@ class MainActivity : ComponentActivity() {
                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                         if (useScreenFlash) hideScreenFlash()
                         if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        refreshGalleryThumbnail()
                         Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
                     }
                     override fun onError(exception: ImageCaptureException) {
