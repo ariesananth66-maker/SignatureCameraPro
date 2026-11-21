@@ -84,11 +84,14 @@ internal class VoiceNoiseReductionProcessor : AudioProcessor {
         // A gentle downward expander lowers quiet background noise between phrases.
         // The low threshold avoids clamping normal speech or applying artificial gain.
         val rms = sqrt(energy / sampleCount)
-        val quietFloor = 0.0006
-        val openLevel = 0.0032
+        // Keep the expander deliberately shallow so quiet speech is not
+        // mistaken for background noise. Only attenuate the very low-level floor.
+        val quietFloor = 0.00025
+        val openLevel = 0.0015
         val blend = ((rms - quietFloor) / (openLevel - quietFloor)).coerceIn(0.0, 1.0)
-        val targetGain = (0.18 + 0.82 * blend).toFloat()
-        val smoothing = if (targetGain > smoothedGain) 0.62f else 0.10f
+        val targetGain = (0.55 + 0.45 * blend).toFloat()
+        // Fast recovery when speech returns; slower attenuation avoids pumping.
+        val smoothing = if (targetGain > smoothedGain) 0.62f else 0.08f
         smoothedGain += (targetGain - smoothedGain) * smoothing
 
         val outputBytes = sampleCount * 2
