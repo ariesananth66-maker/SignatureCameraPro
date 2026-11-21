@@ -573,6 +573,7 @@ class MainActivity : ComponentActivity() {
             startCamera()
         }
         advancedPanel.addView(micNoiseReductionButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
+        updateMicNoiseReductionButton()
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
