@@ -27,25 +27,23 @@ class CameraXController {
 
     fun setZoomRatio(ratio: Float): ListenableFuture<Void>? {
         val camera = activeCamera ?: return null
-        if (uiState.isRecording) return null
         val zoomState = camera.cameraInfo.zoomState.value ?: return null
-        return camera.cameraControl.setZoomRatio(
-            ratio.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
-        )
+        val safeRatio = ratio.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+        uiState = uiState.copy(zoomRatio = safeRatio)
+        return camera.cameraControl.setZoomRatio(safeRatio)
     }
 
     fun setExposureCompensation(index: Int): ListenableFuture<Int>? {
         val camera = activeCamera ?: return null
-        if (uiState.isRecording) return null
         val range = camera.cameraInfo.exposureState.exposureCompensationRange
-        return camera.cameraControl.setExposureCompensationIndex(
-            index.coerceIn(range.lower, range.upper)
-        )
+        val safeIndex = index.coerceIn(range.lower, range.upper)
+        uiState = uiState.copy(exposureCompensationIndex = safeIndex)
+        return camera.cameraControl.setExposureCompensationIndex(safeIndex)
     }
 
     fun setTorch(enabled: Boolean): ListenableFuture<Void>? {
         val camera = activeCamera ?: return null
-        if (uiState.isRecording) return null
+        uiState = uiState.copy(torchEnabled = enabled)
         return camera.cameraControl.enableTorch(enabled)
     }
 
