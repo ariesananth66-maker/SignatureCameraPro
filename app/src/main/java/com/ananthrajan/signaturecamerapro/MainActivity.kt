@@ -697,6 +697,7 @@ class MainActivity : ComponentActivity() {
                         else -> ImageCapture.FLASH_MODE_OFF
                     }
                     image.flashMode = photoFlashMode
+                    cameraXController.updateState(cameraXController.uiState.copy(photoFlashMode = photoFlashMode))
                     getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("photo_flash_mode", photoFlashMode).apply()
                     syncFlashButtonLabel()
                 }
@@ -834,6 +835,10 @@ class MainActivity : ComponentActivity() {
 
     private fun setSettingsExpanded(expanded: Boolean) {
         if (!::settingsDrawer.isInitialized) return
+        if (expanded && recording != null) {
+            Toast.makeText(this, "Stop recording before opening camera settings", Toast.LENGTH_SHORT).show()
+            return
+        }
         settingsDrawer.visibility = if (expanded) View.VISIBLE else View.GONE
         if (::settingsToggleButton.isInitialized) {
             settingsToggleButton.text = if (expanded) "⌄" else "⌃"
