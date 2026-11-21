@@ -1650,7 +1650,7 @@ class MainActivity : ComponentActivity() {
                 ?.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                 ?: emptyArray()
             val fixedRates = availableFpsRanges.filter { it.lower == it.upper }.map { it.lower }.distinct()
-            if (videoFps !in fixedRates || videoFps !in listOf(30, 60)) {
+            if (videoFps != 0 && (videoFps !in fixedRates || videoFps !in listOf(30, 60))) {
                 videoFps = when {
                     fixedRates.contains(30) -> 30
                     fixedRates.contains(60) -> 60
@@ -1704,7 +1704,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Stop recording before changing frame rate", Toast.LENGTH_SHORT).show()
             return
         }
-        val choices = listOf(30, 60).filter { fps -> availableFpsRanges.any { it.lower == fps && it.upper == fps } }
+        val choices = listOf(30, 60, 0).filter { fps -> fps == 0 || availableFpsRanges.any { it.lower == fps && it.upper == fps } }
         if (choices.isEmpty()) {
             videoFps = 0
             videoFpsButton.text = "FRAME RATE: AUTO"
