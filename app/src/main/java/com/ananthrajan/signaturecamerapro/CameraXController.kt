@@ -34,7 +34,7 @@ class CameraXController {
         )
     }
 
-    fun setExposureCompensation(index: Int): ListenableFuture<Void>? {
+    fun setExposureCompensation(index: Int): ListenableFuture<Int>? {
         val camera = activeCamera ?: return null
         if (uiState.isRecording) return null
         val range = camera.cameraInfo.exposureState.exposureCompensationRange
