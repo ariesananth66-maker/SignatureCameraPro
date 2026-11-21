@@ -57,7 +57,6 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
-import androidx.camera.core.ExperimentalImageCaptureOutputFormat
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
@@ -1699,7 +1698,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(ExperimentalImageCaptureOutputFormat::class)
     private fun applyUltraHdrIfSupported(
         builder: ImageCapture.Builder,
         provider: ProcessCameraProvider,
