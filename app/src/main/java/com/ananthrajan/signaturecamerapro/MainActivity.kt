@@ -104,6 +104,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoFpsButton: Button
     private lateinit var videoStabilizationButton: Button
     private lateinit var micNoiseReductionButton: Button
+    private lateinit var jpegQualityButton: Button
+    private lateinit var settingsToggleButton: Button
+    private lateinit var settingsDrawer: ScrollView
+    private lateinit var mainControlsRow: LinearLayout
+    private lateinit var dockHint: TextView
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
     private lateinit var flashStatusLabel: TextView
@@ -378,9 +383,7 @@ class MainActivity : ComponentActivity() {
             // Minimal translucent camera dock; the preview remains edge-to-edge.
             background = GradientDrawable().apply {
                 cornerRadii = floatArrayOf(30f, 30f, 30f, 30f, 0f, 0f, 0f, 0f)
-                colors = intArrayOf(0xE90A0D13.toInt(), 0xF5090B10.toInt())
-                orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(1, 0x337F91A8)
+                setColor(android.graphics.Color.BLACK)
             }
             elevation = 14f
             clipChildren = false
@@ -452,12 +455,23 @@ class MainActivity : ComponentActivity() {
             } else resetManualCapture()
         }
         utilityRow.addView(proButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
-        advancedPanel.addView(utilityRow)
+        val utilityScroll = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(utilityRow, android.widget.HorizontalScrollView.LayoutParams(-2, -2))
+        }
+        utilityRow.layoutParams = LinearLayout.LayoutParams(-2, -2)
+        for (i in 0 until utilityRow.childCount) {
+            utilityRow.getChildAt(i).layoutParams = LinearLayout.LayoutParams(dp(112), dp(46)).apply {
+                setMargins(dp(3), 0, dp(3), 0)
+            }
+        }
+        advancedPanel.addView(utilityScroll, LinearLayout.LayoutParams(-1, dp(54)))
 
         photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
         photoExtensionButton.isEnabled = false
         advancedPanel.addView(photoExtensionButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), dp(4), dp(3), dp(4)) })
-        val jpegQualityButton = smallButton("JPEG QUALITY: $jpegQuality%") {
+        jpegQualityButton = smallButton("JPEG QUALITY: $jpegQuality%") {
             jpegQuality = when (jpegQuality) { 90 -> 95; 95 -> 100; else -> 90 }
             getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
                 .putInt("jpeg_quality", jpegQuality).apply()
@@ -563,9 +577,9 @@ class MainActivity : ComponentActivity() {
         videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         updateModeButtonAppearance()
-        advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), dp(4), dp(3), dp(4)) })
-        advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
-        advancedPanel.addView(videoStabilizationButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
+        advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), dp(4), dp(3), dp(3)) })
+        advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), 0, dp(3), dp(3)) })
+        advancedPanel.addView(videoStabilizationButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), 0, dp(3), dp(3)) })
         micNoiseReductionButton = smallButton(if (micNoiseReductionEnabled) "MIC CLEAN: ON" else "MIC CLEAN: OFF") {
             if (!videoMode) {
                 Toast.makeText(this, "Microphone cleanup is for video recording", Toast.LENGTH_SHORT).show()
@@ -581,8 +595,9 @@ class MainActivity : ComponentActivity() {
             updateMicNoiseReductionButton()
             startCamera()
         }
-        advancedPanel.addView(micNoiseReductionButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
+        advancedPanel.addView(micNoiseReductionButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
         updateMicNoiseReductionButton()
+        updateModeSpecificSettings()
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -718,6 +733,7 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             maxLines = 1
         }
+        mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
         mainRow.gravity = Gravity.CENTER
         mainRow.addView(sideControl(flip, "CAMERA"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
@@ -741,8 +757,15 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
             isFillViewport = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = false
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(0xE61C1C1E.toInt())
+                setStroke(dp(1), 0x33777777)
+            }
             addView(advancedPanel)
         }
+        settingsDrawer = advancedScroll
         val advancedSettingsHeight = if (landscapeLayout) dp(104) else dp(260)
         panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, advancedSettingsHeight))
         fun positionLensRailAboveDock() {
@@ -754,12 +777,13 @@ class MainActivity : ComponentActivity() {
                 lensRow.layoutParams = params
             }
         }
-        val advancedToggleButton = smallButton("⚙  CAMERA SETTINGS") {
-            val show = advancedScroll.visibility != View.VISIBLE
-            advancedScroll.visibility = if (show) View.VISIBLE else View.GONE
-            (it as Button).text = if (show) "⌃  HIDE SETTINGS" else "⚙  CAMERA SETTINGS"
+        val advancedToggleButton = smallButton("⌃") {
+            setSettingsExpanded(advancedScroll.visibility != View.VISIBLE)
             positionLensRailAboveDock()
         }
+        settingsToggleButton = advancedToggleButton
+        advancedToggleButton.textSize = 19f
+        advancedToggleButton.contentDescription = "Open camera settings"
         if (landscapeLayout) {
             // In landscape, keep the lens rail inside the dock so it cannot be
             // pushed underneath the top status strip by the expanded settings sheet.
@@ -774,8 +798,18 @@ class MainActivity : ComponentActivity() {
             setTextColor(0xFFBBBBBB.toInt())
             gravity = Gravity.CENTER
         }
+        dockHint = hint
         panel.addView(hint)
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val params = panel.layoutParams as? FrameLayout.LayoutParams
+            if (params != null) {
+                params.bottomMargin = insets.systemWindowInsetBottom
+                panel.layoutParams = params
+            }
+            insets
+        }
+        root.requestApplyInsets()
         // Recalculate after the dock has been measured so the floating lens rail
         // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
@@ -786,6 +820,34 @@ class MainActivity : ComponentActivity() {
             }
         }
         lensRow.bringToFront()
+        updateModeSpecificSettings()
+    }
+
+    private fun setSettingsExpanded(expanded: Boolean) {
+        if (!::settingsDrawer.isInitialized) return
+        settingsDrawer.visibility = if (expanded) View.VISIBLE else View.GONE
+        if (::settingsToggleButton.isInitialized) {
+            settingsToggleButton.text = if (expanded) "⌄" else "⌃"
+            settingsToggleButton.contentDescription = if (expanded) "Hide camera settings" else "Open camera settings"
+        }
+        if (::mainControlsRow.isInitialized) mainControlsRow.visibility = if (expanded) View.GONE else View.VISIBLE
+        if (::dockHint.isInitialized) dockHint.visibility = if (expanded) View.GONE else View.VISIBLE
+        if (::lensRow.isInitialized && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            lensRow.visibility = if (expanded) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun updateModeSpecificSettings() {
+        if (!::photoExtensionButton.isInitialized || !::jpegQualityButton.isInitialized) return
+        photoExtensionButton.visibility = if (videoMode) View.GONE else View.VISIBLE
+        jpegQualityButton.visibility = if (videoMode) View.GONE else View.VISIBLE
+        if (::videoQualityButton.isInitialized) {
+            val visibility = if (videoMode) View.VISIBLE else View.GONE
+            videoQualityButton.visibility = visibility
+            videoFpsButton.visibility = visibility
+            videoStabilizationButton.visibility = visibility
+            micNoiseReductionButton.visibility = visibility
+        }
     }
 
     private fun setCameraMode(enableVideo: Boolean) {
@@ -802,22 +864,21 @@ class MainActivity : ComponentActivity() {
         captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
         syncFlashButtonLabel()
         updateModeButtonAppearance()
+        updateModeSpecificSettings()
+        setSettingsExpanded(false)
         startCamera()
     }
 
     private fun updateModeButtonAppearance() {
         if (!::photoModeButton.isInitialized || !::videoModeButton.isInitialized) return
-        fun modeBackground(selected: Boolean) = GradientDrawable().apply {
-            cornerRadius = 24f
-            setColor(if (selected) 0xFF1677FF.toInt() else 0xCC202630.toInt())
-            setStroke(if (selected) 2 else 1, if (selected) 0xFF9BC5FF.toInt() else 0x557F8DA3)
-        }
-        photoModeButton.background = modeBackground(!videoMode)
-        videoModeButton.background = modeBackground(videoMode)
-        photoModeButton.alpha = if (videoMode) 0.78f else 1f
-        videoModeButton.alpha = if (videoMode) 1f else 0.78f
-        photoModeButton.text = if (videoMode) "PHOTO" else "●  PHOTO"
-        videoModeButton.text = if (videoMode) "●  VIDEO" else "VIDEO"
+        photoModeButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        videoModeButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        photoModeButton.setTextColor(if (!videoMode) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
+        videoModeButton.setTextColor(if (videoMode) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
+        photoModeButton.alpha = if (videoMode) 0.72f else 1f
+        videoModeButton.alpha = if (videoMode) 1f else 0.72f
+        photoModeButton.text = if (videoMode) "PHOTO" else "•  PHOTO"
+        videoModeButton.text = if (videoMode) "•  VIDEO" else "VIDEO"
         // The live mic meter belongs to video capture; keep photo mode's viewfinder uncluttered.
         if (::audioLevelLabel.isInitialized) {
             audioLevelLabel.visibility = if (videoMode) View.VISIBLE else View.GONE
@@ -893,13 +954,16 @@ class MainActivity : ComponentActivity() {
     private fun smallButton(label: String, action: (View) -> Unit) =
         Button(this).apply {
             text = label
-            textSize = 15f
+            textSize = 13f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            includeFontPadding = false
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
             background = GradientDrawable().apply {
                 cornerRadius = 24f
-                setColor(0xFF252A33.toInt())
-                setStroke(1, 0x44FFFFFF)
+                setColor(0xFF1C1C1E.toInt())
+                setStroke(1, 0x33777777)
             }
             elevation = 2f
             isClickable = true
@@ -951,12 +1015,12 @@ class MainActivity : ComponentActivity() {
             button.textSize = 13f
             button.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
             button.isAllCaps = false
-            button.setTextColor(android.graphics.Color.WHITE)
+            button.setTextColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
             button.tag = ratio
             button.background = GradientDrawable().apply {
                 cornerRadius = 18f
-                setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF1677FF.toInt() else 0xCC263243.toInt())
-                setStroke(1, if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF70B5FF.toInt() else 0x668FA6C4)
+                setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF2C2C2E.toInt() else 0xCC1C1C1E.toInt())
+                setStroke(1, if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFFFD60A.toInt() else 0x55777777)
             }
             button.minWidth = 0
             button.minHeight = dp(44)
@@ -1237,6 +1301,7 @@ class MainActivity : ComponentActivity() {
                 .start(ContextCompat.getMainExecutor(this)) { event ->
                     when (event) {
                         is VideoRecordEvent.Start -> {
+                            setSettingsExpanded(false)
                             recordingTimer.base = android.os.SystemClock.elapsedRealtime()
                             recordingTimer.visibility = View.VISIBLE
                             recordingTimer.start()
