@@ -123,6 +123,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
     private lateinit var flashStatusLabel: TextView
+    private lateinit var topChrome: LinearLayout
+    private lateinit var cameraDockPanel: LinearLayout
     private lateinit var screenFlashOverlay: View
     private var screenFlashHideRunnable: Runnable? = null
     private var screenFlashEnabled = true
@@ -420,7 +422,13 @@ class MainActivity : ComponentActivity() {
         title.textSize = 11f
         title.letterSpacing = 0.28f
         title.alpha = 0.90f
-        top.addView(title)
+        val topHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(2), 0, dp(2))
+        }
+        topHeader.addView(title, LinearLayout.LayoutParams(0, dp(42), 1f))
+        top.addView(topHeader)
         top.addView(zoomLabel)
         recordingTimer = android.widget.Chronometer(this).apply {
             text = "● REC  00:00"
@@ -880,11 +888,12 @@ class MainActivity : ComponentActivity() {
             contentDescription = "Open recent photos and videos"
             setOnClickListener { showRecentCaptures() }
         }
-        mainRow.addView(sideControl(dockGalleryButton, "GALLERY"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(82), dp(88)).apply { setMargins(dp(4), 0, dp(4), 0) })
-        mainRow.addView(sideControl(flip, "FLIP"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
+        // Three-point dock: Gallery and Flip share equal side columns while
+        // the shutter stays geometrically centered. Flash lives in the top bar.
+        mainRow.addView(sideControl(dockGalleryButton, "GALLERY"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(82), dp(88)).apply { setMargins(dp(8), 0, dp(8), 0) })
+        mainRow.addView(sideControl(flip, "FLIP"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
         syncFlashButtonLabel()
-        mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
         videoRow.setPadding(dp(18), dp(3), dp(18), dp(3))
         videoRow.gravity = Gravity.CENTER
@@ -945,15 +954,19 @@ class MainActivity : ComponentActivity() {
                 setMargins(dp(12), dp(2), dp(12), dp(2))
             })
         }
-        panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(4), dp(4), dp(2)) })
-        if (!landscapeLayout) {
-            // In portrait, keep the chevron above the drawer so settings open
-            // toward the viewfinder, never underneath the shutter dock.
-            panel.removeView(advancedToggleButton)
-            panel.removeView(advancedScroll)
-            panel.addView(advancedToggleButton, 0, LinearLayout.LayoutParams(-1, dp(40)))
-            panel.addView(advancedScroll, 1, LinearLayout.LayoutParams(-1, advancedSettingsHeight))
+        // Keep drawer toggle in the safe top action row, clear of the shutter dock.
+        val flashTopControl = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            addView(flashButton, LinearLayout.LayoutParams(dp(42), dp(40)))
+            addView(flashStatusLabel, LinearLayout.LayoutParams(dp(82), dp(40)))
         }
+        flashStatusLabel.textSize = 8f
+        flashStatusLabel.maxLines = 1
+        topHeader.addView(flashTopControl, LinearLayout.LayoutParams(dp(124), dp(42)))
+        topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+            leftMargin = dp(4)
+        })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS   •   PINCH TO ZOOM"
             textSize = 10f
@@ -962,6 +975,8 @@ class MainActivity : ComponentActivity() {
         }
         dockHint = hint
         panel.addView(hint)
+        cameraDockPanel = panel
+        topChrome = top
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         root.setOnApplyWindowInsetsListener { _, insets ->
             val params = panel.layoutParams as? FrameLayout.LayoutParams
@@ -982,7 +997,24 @@ class MainActivity : ComponentActivity() {
             }
         }
         lensRow.bringToFront()
+        updateChromeForAspectRatio()
         updateModeSpecificSettings()
+    }
+
+    private fun updateChromeForAspectRatio() {
+        if (!::topChrome.isInitialized || !::cameraDockPanel.isInitialized) return
+        // FULL is currently a still-photo mode; video supports 16:9 and 4:3 only.
+        val fullPhoto = !videoMode &&
+            cameraXController.uiState.photoAspectRatio == PhotoAspectRatio.FULL
+        val chromeColor = if (fullPhoto) 0x77000000.toInt() else android.graphics.Color.BLACK
+        topChrome.setBackgroundColor(chromeColor)
+        cameraDockPanel.background = GradientDrawable().apply {
+            cornerRadii = floatArrayOf(
+                dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(),
+                0f, 0f, 0f, 0f
+            )
+            setColor(if (fullPhoto) 0x88000000.toInt() else android.graphics.Color.BLACK)
+        }
     }
 
     private fun setSettingsExpanded(expanded: Boolean) {
@@ -1049,6 +1081,7 @@ class MainActivity : ComponentActivity() {
         syncFlashButtonLabel()
         updateModeButtonAppearance()
         updateModeSpecificSettings()
+        updateChromeForAspectRatio()
         setSettingsExpanded(false)
         updatePreviewAspectRatioFrame { startCamera() }
     }
@@ -1117,6 +1150,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
             .putString("photo_aspect_ratio", ratio.name).apply()
         updateAspectRatioControls()
+        updateChromeForAspectRatio()
         updatePreviewAspectRatioFrame { startCamera() }
     }
 
@@ -1130,6 +1164,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
             .putString("video_aspect_ratio", ratio.name).apply()
         updateAspectRatioControls()
+        updateChromeForAspectRatio()
         updatePreviewAspectRatioFrame { startCamera() }
     }
 
