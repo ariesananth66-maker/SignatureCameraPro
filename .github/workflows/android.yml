@@ -44,6 +44,15 @@ jobs:
           if grep -Eq "android.permission.(INTERNET|READ_CONTACTS|WRITE_CONTACTS|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_SMS|SEND_SMS)" manifest-tree.txt; then
             echo "Unexpected sensitive permission in APK manifest"; exit 1
           fi
+
+          # Verify the package/version metadata in the built artifact, not just Gradle source.
+          "$AAPT" dump badging "$APK" > apk-badging.txt
+          grep -q "package: name='com.ariesanth.signaturecamerapro' versionCode='12' versionName='1.1.1'" apk-badging.txt
+
+          # Confirm the APK is aligned and has a valid installable signature.
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+
           sha256sum "$APK" > "$APK.sha256"
 
       - name: Upload debug APK
