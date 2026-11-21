@@ -1,36 +1,58 @@
 # Signature Camera Pro
 
-A native Android camera app built with Kotlin and CameraX.
+Native Android camera application built with Kotlin and CameraX.
 
-## Current starter features
+## Current app
 
-- Live CameraX preview
-- Rear/front camera switching
-- Photo capture at CameraX maximum-quality capture mode
-- Saves JPEG photos to the device Gallery
-- Flash on/off control
-- Runtime camera permission handling
+- App ID: `com.ananthrajan.signaturecamerapro`
+- Current source version: **1.1.7** (version code 18)
+- Minimum Android version: Android 8.0 (API 26)
+- Compile / target SDK: 36
+- JDK: 17
 
-## Requirements
+## Camera features
 
+- CameraX live preview with rear/front switching
+- Still photo capture using CameraX maximum-quality mode and the highest available 4:3 resolution strategy
+- Shared PreviewView viewport for preview and capture crop alignment when the view has a valid viewport
+- Flash controls, front-camera screen flash, tap-to-focus, pinch zoom, and exposure compensation
+- Pro controls for manual focus and other Camera2 capabilities where the device exposes them
+- Optional RAW/DNG capture only when the selected camera advertises RAW support
+- Optional manufacturer photo extensions (such as Night, HDR, or Bokeh) only when the device exposes them
+- Ultra HDR JPEG output when CameraX and the selected camera report support; otherwise standard JPEG
+- Hardware still-image noise-reduction, hot-pixel, shading, and aberration modes are requested only when advertised by the camera HAL
+- Video recording through CameraX Recorder
+- Optional conservative microphone cleanup for supported PCM 16-bit audio: low-frequency rumble filtering and gentle attenuation of very quiet audio between speech
+
+## Important limitations
+
+- Camera quality depends on the phone's camera hardware, firmware, Camera2 HAL, lighting, and supported CameraX capabilities.
+- The app does **not** implement an AI denoiser or a custom multi-frame Night/HDR computational photography pipeline.
+- Microphone cleanup is not full broadband or AI noise cancellation; compare recordings with it enabled and disabled, especially for quiet speech and outdoor wind.
+- Shared viewport binding is intended to reduce preview/photo framing differences, but the result must be checked on the target phone.
+- Feature availability can differ between lenses and between front and rear cameras.
+
+## Build locally
+
+Requirements:
 - Android Studio with Android SDK 36
 - JDK 17
-- Android device running Android 8.0 (API 26) or later
+- Gradle wrapper from this repository
 
-The app is configured with compile/target SDK 36 and can run on Android 17 devices. It does not yet use Android 17-only APIs.
-
-## Build
-
-Open this repository in Android Studio, allow Gradle sync, then run the `:app` configuration on a physical Android device. A physical device is recommended because camera hardware is required.
-
-You can also build a debug APK with Gradle 8.13:
+Build the debug APK:
 
 ```bash
-gradle assembleDebug
+./gradlew assembleDebug
 ```
 
-The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+Output:
 
-## Roadmap
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
 
-Manual focus, ISO, shutter speed, exposure compensation, RAW capture, zoom controls, and a settings screen are planned. Availability depends on the camera hardware and Android Camera2 capabilities; these features are not implemented in the starter build yet.
+A GitHub Actions workflow also builds, audits package metadata, checks APK alignment and signature, calculates a SHA-256 checksum, and uploads a debug APK artifact.
+
+## Release signing
+
+The CI artifact is a debug-signed APK, not a Play Store release. A stable release signing key must be configured securely before producing an installable release build intended for long-term updates. Never commit a keystore or signing passwords to the repository.
