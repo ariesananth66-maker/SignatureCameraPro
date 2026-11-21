@@ -36,24 +36,31 @@ jobs:
       - name: Audit APK permissions and checksum
         shell: bash
         run: |
+          set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
-          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > manifest-tree.txt
-          grep -q "android.permission.CAMERA" manifest-tree.txt
-          grep -q "android.permission.RECORD_AUDIO" manifest-tree.txt
-          if grep -Eq "android.permission.(INTERNET|READ_CONTACTS|WRITE_CONTACTS|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_SMS|SEND_SMS)" manifest-tree.txt; then
-            echo "Unexpected sensitive permission in APK manifest"; exit 1
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+
+          test -s "$APK"
+          "$AAPT" dump permissions "$APK" | tee apk-permissions.txt
+          grep -Fq "uses-permission: name='android.permission.CAMERA'" apk-permissions.txt
+          grep -Fq "uses-permission: name='android.permission.RECORD_AUDIO'" apk-permissions.txt
+
+          # This app must not request network, contacts, location, SMS or other
+          # unrelated sensitive permissions. Match permission names literally.
+          if grep -Eq "uses-permission.*name='android\\.permission\\.(INTERNET|READ_CONTACTS|WRITE_CONTACTS|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_SMS|SEND_SMS)'" apk-permissions.txt; then
+            echo "Unexpected sensitive permission in APK manifest"
+            exit 1
           fi
 
-          # Verify the package/version metadata in the built artifact, not just Gradle source.
-          "$AAPT" dump badging "$APK" > apk-badging.txt
-          grep -q "package: name='com.ariesanth.signaturecamerapro' versionCode='12' versionName='1.1.1'" apk-badging.txt
+          # Verify package and version metadata in the actual built APK.
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
+          grep -Eq "^package: name='com\\.ariesanth\\.signaturecamerapro' versionCode='12' versionName='1\\.1\\.1'" apk-badging.txt
 
-          # Confirm the APK is aligned and has a valid installable signature.
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-
-          sha256sum "$APK" > "$APK.sha256"
+          # Confirm alignment and APK signing integrity.
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          sha256sum "$APK" | tee "$APK.sha256"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
