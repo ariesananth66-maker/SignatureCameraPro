@@ -11,8 +11,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.1.3"
+        versionCode = 15
+        versionName = "1.1.4"
     }
 
     compileOptions {
@@ -25,7 +25,7 @@ android {
 }
 
 dependencies {
-    val cameraxVersion = "1.6.2"
+    val cameraxVersion = "1.7.0"
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-ktx:1.11.0")
     implementation("androidx.camera:camera-core:$cameraxVersion")
