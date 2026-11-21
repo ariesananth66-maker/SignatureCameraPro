@@ -1295,12 +1295,17 @@ class MainActivity : ComponentActivity() {
             lastMicLevelSummary = "MIC LEVEL MEASURING"
             audioLevelBar.progress = 0
             audioLevelLabel.text = "MIC  •  STARTING"
+            // Capture in the phone's current display orientation, then keep that
+            // orientation stable for the duration of this recording.
+            @Suppress("DEPRECATION")
+            activeVideo.targetRotation = windowManager.defaultDisplay.rotation
             recording = activeVideo.output
                 .prepareRecording(this, outputOptions)
                 .withAudioEnabled()
                 .start(ContextCompat.getMainExecutor(this)) { event ->
                     when (event) {
                         is VideoRecordEvent.Start -> {
+                            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
                             setSettingsExpanded(false)
                             recordingTimer.base = android.os.SystemClock.elapsedRealtime()
                             recordingTimer.visibility = View.VISIBLE
@@ -1332,6 +1337,7 @@ class MainActivity : ComponentActivity() {
                         }
                         is VideoRecordEvent.Finalize -> {
                             recording = null
+                            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                             updateCaptureButtonAppearance()
                             recordingTimer.stop()
                             recordingTimer.visibility = View.GONE
@@ -1364,6 +1370,7 @@ class MainActivity : ComponentActivity() {
                 }
         } catch (e: Exception) {
             recording = null
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             updateCaptureButtonAppearance()
             if (::recordingTimer.isInitialized) {
                 recordingTimer.stop()
