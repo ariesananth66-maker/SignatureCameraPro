@@ -56,6 +56,7 @@ import androidx.camera.video.VideoRecordEvent
 import android.util.Range
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -105,6 +106,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoFpsButton: Button
     private lateinit var videoStabilizationButton: Button
     private lateinit var micNoiseReductionButton: Button
+    private lateinit var photoRatioRow: LinearLayout
+    private lateinit var videoRatioRow: LinearLayout
+    private lateinit var photoRatioButtons: List<Button>
+    private lateinit var videoRatioButtons: List<Button>
     private lateinit var jpegQualityButton: Button
     private lateinit var settingsToggleButton: Button
     private lateinit var settingsDrawer: ScrollView
@@ -191,6 +196,17 @@ class MainActivity : ComponentActivity() {
         videoFps = cameraPrefs.getInt("video_fps", 30).let { if (it == 60) 60 else if (it == 30) 30 else 0 }
         videoStabilizationEnabled = cameraPrefs.getBoolean("video_stabilization", false)
         micNoiseReductionEnabled = cameraPrefs.getBoolean("mic_noise_reduction_enabled", true)
+        cameraXController.updateState(cameraXController.uiState.copy(
+            photoAspectRatio = when (cameraPrefs.getString("photo_aspect_ratio", "RATIO_4_3")) {
+                "RATIO_16_9" -> PhotoAspectRatio.RATIO_16_9
+                "FULL" -> PhotoAspectRatio.FULL
+                else -> PhotoAspectRatio.RATIO_4_3
+            },
+            videoAspectRatio = when (cameraPrefs.getString("video_aspect_ratio", "RATIO_16_9")) {
+                "RATIO_4_3" -> VideoAspectRatio.RATIO_4_3
+                else -> VideoAspectRatio.RATIO_16_9
+            }
+        ))
         manualIso = cameraPrefs.getInt("manual_iso", 400).coerceIn(50, 51200)
         manualShutterNs = cameraPrefs.getLong("manual_shutter_ns", 10_000_000L).coerceIn(1_000L, 1_000_000_000L)
         manualFocusProgress = cameraPrefs.getInt("manual_focus_progress", 0).coerceIn(0, 1000)
@@ -560,7 +576,36 @@ class MainActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(0, dp(8), 0, 0) })
         advancedPanel.addView(proPanel)
 
+        photoRatioRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(2), dp(3), dp(2), dp(3))
+        }
+        photoRatioButtons = listOf(
+            smallButton("4:3") { selectPhotoAspectRatio(PhotoAspectRatio.RATIO_4_3) },
+            smallButton("16:9") { selectPhotoAspectRatio(PhotoAspectRatio.RATIO_16_9) },
+            smallButton("FULL") { selectPhotoAspectRatio(PhotoAspectRatio.FULL) }
+        )
+        photoRatioButtons.forEach { photoRatioRow.addView(it, LinearLayout.LayoutParams(0, dp(42), 1f).apply { setMargins(dp(3), 0, dp(3), 0) }) }
+        advancedPanel.addView(TextView(this).apply { text = "PHOTO ASPECT RATIO"; textSize = 10f; setTextColor(0xFFB8B8BE.toInt()); gravity = Gravity.CENTER })
+        advancedPanel.addView(photoRatioRow, LinearLayout.LayoutParams(-1, dp(46)))
+
+        videoRatioRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(2), dp(3), dp(2), dp(3))
+        }
+        videoRatioButtons = listOf(
+            smallButton("16:9") { selectVideoAspectRatio(VideoAspectRatio.RATIO_16_9) },
+            smallButton("4:3") { selectVideoAspectRatio(VideoAspectRatio.RATIO_4_3) }
+        )
+        videoRatioButtons.forEach { videoRatioRow.addView(it, LinearLayout.LayoutParams(0, dp(42), 1f).apply { setMargins(dp(3), 0, dp(3), 0) }) }
+        advancedPanel.addView(TextView(this).apply { text = "VIDEO ASPECT RATIO"; textSize = 10f; setTextColor(0xFFB8B8BE.toInt()); gravity = Gravity.CENTER })
+        advancedPanel.addView(videoRatioRow, LinearLayout.LayoutParams(-1, dp(46)))
+        updateAspectRatioControls()
+
         val videoRow = LinearLayout(this).apply {
+
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(5), 0, dp(5))
@@ -599,6 +644,7 @@ class MainActivity : ComponentActivity() {
         advancedPanel.addView(micNoiseReductionButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
         updateMicNoiseReductionButton()
         updateModeSpecificSettings()
+        updateAspectRatioControls()
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -903,6 +949,84 @@ class MainActivity : ComponentActivity() {
         }
         updateMicNoiseReductionButton()
         updateCaptureButtonAppearance()
+        updateAspectRatioControls()
+    }
+
+
+    private fun updateAspectRatioControls() {
+        if (!::photoRatioRow.isInitialized || !::videoRatioRow.isInitialized) return
+        photoRatioRow.visibility = if (videoMode) View.GONE else View.VISIBLE
+        videoRatioRow.visibility = if (videoMode) View.VISIBLE else View.GONE
+        val selectedPhoto = cameraXController.uiState.photoAspectRatio
+        photoRatioButtons.forEachIndexed { index, button ->
+            val selected = when (index) {
+                0 -> selectedPhoto == PhotoAspectRatio.RATIO_4_3
+                1 -> selectedPhoto == PhotoAspectRatio.RATIO_16_9
+                else -> selectedPhoto == PhotoAspectRatio.FULL
+            }
+            button.setTextColor(if (selected) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
+            button.background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(if (selected) 0xFF34343A.toInt() else 0xFF1C1C1E.toInt())
+                setStroke(dp(1), if (selected) 0xFFFFD60A.toInt() else 0x33777777)
+            }
+        }
+        val selectedVideo = cameraXController.uiState.videoAspectRatio
+        videoRatioButtons.forEachIndexed { index, button ->
+            val selected = if (index == 0) selectedVideo == VideoAspectRatio.RATIO_16_9
+                else selectedVideo == VideoAspectRatio.RATIO_4_3
+            button.setTextColor(if (selected) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
+            button.background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(if (selected) 0xFF34343A.toInt() else 0xFF1C1C1E.toInt())
+                setStroke(dp(1), if (selected) 0xFFFFD60A.toInt() else 0x33777777)
+            }
+        }
+    }
+
+    private fun selectPhotoAspectRatio(ratio: PhotoAspectRatio) {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing aspect ratio", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (cameraXController.uiState.photoAspectRatio == ratio) return
+        cameraXController.updateState(cameraXController.uiState.copy(photoAspectRatio = ratio))
+        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+            .putString("photo_aspect_ratio", ratio.name).apply()
+        updateAspectRatioControls()
+        startCamera()
+    }
+
+    private fun selectVideoAspectRatio(ratio: VideoAspectRatio) {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing aspect ratio", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (cameraXController.uiState.videoAspectRatio == ratio) return
+        cameraXController.updateState(cameraXController.uiState.copy(videoAspectRatio = ratio))
+        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+            .putString("video_aspect_ratio", ratio.name).apply()
+        updateAspectRatioControls()
+        startCamera()
+    }
+
+    // CameraX standard aspect strategies are 4:3 and 16:9. FULL selects the
+    // highest available 4:3 still stream; exact sensor dimensions are device-specific.
+    private fun currentResolutionSelector(isVideo: Boolean = videoMode): ResolutionSelector {
+        val strategy = if (isVideo) {
+            if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_4_3)
+                AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+            else AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
+        } else {
+            when (cameraXController.uiState.photoAspectRatio) {
+                PhotoAspectRatio.RATIO_16_9 -> AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
+                PhotoAspectRatio.RATIO_4_3, PhotoAspectRatio.FULL -> AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+            }
+        }
+        return ResolutionSelector.Builder()
+            .setAspectRatioStrategy(strategy)
+            .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+            .build()
     }
 
     private fun updateMicNoiseReductionButton() {
@@ -1907,7 +2031,8 @@ class MainActivity : ComponentActivity() {
             if (previewView.viewPort != null) viewportRetryCount = 0
             val provider = future.get()
             initializePhotoExtensions(provider)
-            val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+            val activeResolutionSelector = currentResolutionSelector(videoMode)
+            val preview = Preview.Builder().setResolutionSelector(activeResolutionSelector).build().also { it.surfaceProvider = previewView.surfaceProvider }
             try {
                 provider.unbindAll()
                 val activeSelector = if (!videoMode && selectedPhotoExtension != null) {
@@ -1916,7 +2041,9 @@ class MainActivity : ComponentActivity() {
                 } else cameraSelector
                 if (videoMode) {
                     imageCapture = null
+                    val recorderAspectRatio = if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_4_3) AspectRatio.RATIO_4_3 else AspectRatio.RATIO_16_9
                     val recorderBuilder = Recorder.Builder()
+                        .setAspectRatio(recorderAspectRatio)
                         .setQualitySelector(QualitySelector.from(videoQuality, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)))
                     if (micNoiseReductionEnabled) {
                         recorderBuilder.setAudioProcessors(listOf(VoiceNoiseReductionProcessor()))
@@ -1929,10 +2056,7 @@ class MainActivity : ComponentActivity() {
                     photoExtensionButton.isEnabled = false
                 } else {
                     videoCapture = null
-                    val photoResolution = ResolutionSelector.Builder()
-                        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-                        .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
-                        .build()
+                    val photoResolution = activeResolutionSelector
                     val imageBuilder = ImageCapture.Builder()
                         .setResolutionSelector(photoResolution)
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
@@ -1974,7 +2098,7 @@ class MainActivity : ComponentActivity() {
                         provider.unbindAll()
                         val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
                         val fallbackImageBuilder = ImageCapture.Builder()
-                            .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build())
+                            .setResolutionSelector(currentResolutionSelector(false))
                             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                             .setJpegQuality(jpegQuality)
                             .setFlashMode(photoFlashMode)
