@@ -1783,7 +1783,28 @@ class MainActivity : ComponentActivity() {
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
             } catch (e: Exception) {
-                if (selectedPhotoExtension != null) {
+                if (ultraHdrCaptureEnabled && selectedPhotoExtension == null && !videoMode) {
+                    ultraHdrCaptureEnabled = false
+                    updatePhotoExtensionLabel()
+                    Toast.makeText(this, "Ultra HDR could not bind on this camera mode; using standard JPEG", Toast.LENGTH_LONG).show()
+                    try {
+                        provider.unbindAll()
+                        val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+                        val fallbackImageBuilder = ImageCapture.Builder()
+                            .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build())
+                            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                            .setJpegQuality(jpegQuality)
+                            .setFlashMode(photoFlashMode)
+                        applyStillImageQualityOptions(fallbackImageBuilder)
+                        imageCapture = fallbackImageBuilder.build()
+                        camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
+                        refreshPhotoExtensions()
+                        updateManualRanges()
+                        updateScreenFlashPreview()
+                    } catch (fallback: Exception) {
+                        Toast.makeText(this, "Unable to start camera: ${fallback.localizedMessage}", Toast.LENGTH_LONG).show()
+                    }
+                } else if (selectedPhotoExtension != null) {
                     selectedPhotoExtension = null
                     updatePhotoExtensionLabel()
                     Toast.makeText(this, "OEM photo effect could not start; returning to standard camera", Toast.LENGTH_LONG).show()
