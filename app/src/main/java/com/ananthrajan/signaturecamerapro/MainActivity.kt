@@ -78,6 +78,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 
 class MainActivity : ComponentActivity() {
+    private val cameraXController = CameraXController()
     private lateinit var previewView: PreviewView
     private lateinit var gridView: GridOverlay
     private lateinit var focusOverlay: FocusOverlay
@@ -711,7 +712,7 @@ class MainActivity : ComponentActivity() {
             button.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(0xFF222225.toInt())
-                setStroke(1, 0xFF343438)
+                setStroke(1, 0xFF343438.toInt())
             }
             button.elevation = 5f
             column.addView(button, LinearLayout.LayoutParams(dp(58), dp(58)))
@@ -1101,7 +1102,7 @@ class MainActivity : ComponentActivity() {
             button.background = GradientDrawable().apply {
                 cornerRadius = 18f
                 setColor(if (selected) 0xFFFFD60A.toInt() else 0xFF222225.toInt())
-                setStroke(1, if (selected) 0xFFFFD60A.toInt() else 0xFF343438)
+                setStroke(1, if (selected) 0xFFFFD60A.toInt() else 0xFF343438.toInt())
             }
             button.isSelected = selected
         }
@@ -1838,11 +1839,38 @@ class MainActivity : ComponentActivity() {
                 .addUseCase(preview)
                 .apply { useCases.forEach { addUseCase(it) } }
                 .build()
-            return provider.bindToLifecycle(this, selector, group)
+            return provider.bindToLifecycle(this, selector, group).also { attachCameraController(it) }
         }
         // If the view has not produced a viewport yet, preserve the previous
         // binding path rather than delaying camera startup or failing capture.
-        return provider.bindToLifecycle(this, selector, preview, *useCases)
+        return provider.bindToLifecycle(this, selector, preview, *useCases).also { attachCameraController(it) }
+    }
+
+    // Phase 1 bridge: keep MainActivity's existing CameraX binding and capture
+    // orchestration intact while publishing the active camera + UI snapshot.
+    private fun attachCameraController(activeCamera: Camera) {
+        cameraXController.attach(activeCamera)
+        cameraXController.updateState(
+            CameraUiState(
+                isVideoMode = videoMode,
+                zoomRatio = activeCamera.cameraInfo.zoomState.value?.zoomRatio ?: 1f,
+                exposureCompensationIndex = exposureIndex,
+                photoFlashMode = photoFlashMode,
+                torchEnabled = torchEnabled,
+                videoQuality = when (videoQuality) {
+                    Quality.UHD -> "UHD"
+                    Quality.FHD -> "FHD"
+                    Quality.HD -> "HD"
+                    else -> "SD"
+                },
+                videoFps = videoFps,
+                videoStabilizationEnabled = videoStabilizationEnabled,
+                micCleanEnabled = micNoiseReductionEnabled,
+                jpegQuality = jpegQuality,
+                ultraHdrEnabled = ultraHdrCaptureEnabled,
+                isRecording = recording != null
+            )
+        )
     }
 
     @OptIn(ExperimentalAudioApi::class)
