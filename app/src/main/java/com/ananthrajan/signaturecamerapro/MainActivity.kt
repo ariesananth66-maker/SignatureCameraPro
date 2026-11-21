@@ -1820,6 +1820,7 @@ class MainActivity : ComponentActivity() {
             else -> "SD"
         }
         saveVideoPreferences()
+        updateQuickTopControls()
         if (recording == null) startCamera()
     }
 
@@ -1841,6 +1842,7 @@ class MainActivity : ComponentActivity() {
         videoFps = choices[(index + 1) % choices.size]
         videoFpsButton.text = "FRAME RATE: $videoFps FPS"
         saveVideoPreferences()
+        updateQuickTopControls()
         applyVideoRequestOptions()
     }
 
