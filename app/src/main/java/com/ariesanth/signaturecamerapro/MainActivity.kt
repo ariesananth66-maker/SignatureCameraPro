@@ -1,4 +1,4 @@
-package com.ariesananth.signaturecamerapro
+package com.ananthrajan.signaturecamerapro
 
 import android.Manifest
 import android.hardware.camera2.CameraCharacteristics
