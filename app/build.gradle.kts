@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.ariesananth.signaturecamerapro"
+    namespace = "com.ananthrajan.signaturecamerapro"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.ariesananth.signaturecamerapro"
+        applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.1.1"
+        versionCode = 13
+        versionName = "1.1.2"
     }
 
     compileOptions {
