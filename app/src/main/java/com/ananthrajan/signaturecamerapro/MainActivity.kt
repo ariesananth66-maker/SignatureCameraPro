@@ -214,12 +214,72 @@ class MainActivity : ComponentActivity() {
         buildCameraUi()
         // Wait for PreviewView measurement so its ViewPort is available before
         // binding Preview + ImageCapture into a shared crop group.
-        if (hasCameraPermission()) previewView.post { startCamera() }
+        if (hasCameraPermission()) previewView.post { updatePreviewAspectRatioFrame { startCamera() } }
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
     }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    // Match the viewfinder bounds to the selected capture ratio so the
+    // PreviewView ViewPort and saved output share the same framing.
+    private fun updatePreviewAspectRatioFrame(afterLayout: (() -> Unit)? = null) {
+        if (!::previewView.isInitialized) {
+            afterLayout?.invoke()
+            return
+        }
+        val root = previewView.parent as? FrameLayout
+        if (root == null) {
+            afterLayout?.invoke()
+            return
+        }
+        root.post {
+            val rootWidth = root.width
+            val rootHeight = root.height
+            if (rootWidth <= 0 || rootHeight <= 0) {
+                previewView.post { updatePreviewAspectRatioFrame(afterLayout) }
+                return@post
+            }
+
+            val captureAspect = if (videoMode) {
+                if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_4_3) 4f / 3f else 16f / 9f
+            } else {
+                when (cameraXController.uiState.photoAspectRatio) {
+                    PhotoAspectRatio.RATIO_4_3, PhotoAspectRatio.FULL -> 4f / 3f
+                    PhotoAspectRatio.RATIO_16_9 -> 16f / 9f
+                }
+            }
+            val isPortrait = rootHeight >= rootWidth
+            val frameAspect = if (isPortrait) 1f / captureAspect else captureAspect
+            val fullFrame = !videoMode && cameraXController.uiState.photoAspectRatio == PhotoAspectRatio.FULL
+            val frameWidth: Int
+            val frameHeight: Int
+            if (fullFrame) {
+                frameWidth = rootWidth
+                frameHeight = rootHeight
+            } else if (frameAspect >= rootWidth.toFloat() / rootHeight.toFloat()) {
+                frameWidth = rootWidth
+                frameHeight = (rootWidth / frameAspect).toInt().coerceAtLeast(1)
+            } else {
+                frameHeight = rootHeight
+                frameWidth = (rootHeight * frameAspect).toInt().coerceAtLeast(1)
+            }
+
+            fun applyFrame(view: View) {
+                val params = view.layoutParams as? FrameLayout.LayoutParams
+                    ?: FrameLayout.LayoutParams(frameWidth, frameHeight, Gravity.CENTER)
+                params.width = frameWidth
+                params.height = frameHeight
+                params.gravity = Gravity.CENTER
+                view.layoutParams = params
+            }
+            applyFrame(previewView)
+            if (::gridView.isInitialized) applyFrame(gridView)
+            if (::focusOverlay.isInitialized) applyFrame(focusOverlay)
+            if (::screenFlashOverlay.isInitialized) applyFrame(screenFlashOverlay)
+            previewView.post { afterLayout?.invoke() }
+        }
+    }
 
     private fun buildCameraUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
@@ -822,7 +882,7 @@ class MainActivity : ComponentActivity() {
             // and expanded states; a fixed margin caused it to sit behind settings.
             panel.post {
                 val params = lensRow.layoutParams as? FrameLayout.LayoutParams ?: return@post
-                params.bottomMargin = panel.height + dp(8)
+                params.bottomMargin = panel.height + dp(16)
                 lensRow.layoutParams = params
             }
         }
@@ -928,7 +988,7 @@ class MainActivity : ComponentActivity() {
         updateModeButtonAppearance()
         updateModeSpecificSettings()
         setSettingsExpanded(false)
-        startCamera()
+        updatePreviewAspectRatioFrame { startCamera() }
     }
 
     private fun updateModeButtonAppearance() {
@@ -995,7 +1055,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
             .putString("photo_aspect_ratio", ratio.name).apply()
         updateAspectRatioControls()
-        startCamera()
+        updatePreviewAspectRatioFrame { startCamera() }
     }
 
     private fun selectVideoAspectRatio(ratio: VideoAspectRatio) {
@@ -1008,7 +1068,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
             .putString("video_aspect_ratio", ratio.name).apply()
         updateAspectRatioControls()
-        startCamera()
+        updatePreviewAspectRatioFrame { startCamera() }
     }
 
     // CameraX standard aspect strategies are 4:3 and 16:9. FULL selects the
