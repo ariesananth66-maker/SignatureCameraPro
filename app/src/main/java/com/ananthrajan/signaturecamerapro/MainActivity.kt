@@ -697,7 +697,7 @@ class MainActivity : ComponentActivity() {
                         else -> ImageCapture.FLASH_MODE_OFF
                     }
                     image.flashMode = photoFlashMode
-                    cameraXController.updateState(cameraXController.uiState.copy(photoFlashMode = photoFlashMode))
+                    cameraXController.setPhotoFlashMode(photoFlashMode)
                     getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("photo_flash_mode", photoFlashMode).apply()
                     syncFlashButtonLabel()
                 }
@@ -874,6 +874,7 @@ class MainActivity : ComponentActivity() {
         cameraXController.setTorch(false)
         torchEnabled = false
         videoMode = enableVideo
+        cameraXController.setVideoMode(enableVideo)
         captureButton.text = if (videoMode) "● REC" else "●"
         captureButton.contentDescription = if (videoMode) "Start video recording" else "Take photo"
         syncFlashButtonLabel()
@@ -1876,6 +1877,8 @@ class MainActivity : ComponentActivity() {
                 micCleanEnabled = micNoiseReductionEnabled,
                 jpegQuality = jpegQuality,
                 ultraHdrEnabled = ultraHdrCaptureEnabled,
+                photoAspectRatio = cameraXController.uiState.photoAspectRatio,
+                videoAspectRatio = cameraXController.uiState.videoAspectRatio,
                 isRecording = recording != null
             )
         )
@@ -1943,6 +1946,7 @@ class MainActivity : ComponentActivity() {
                     refreshPhotoExtensions()
                 }
                 camera?.cameraInfo?.zoomState?.observe(this) { state ->
+                    cameraXController.updateState(cameraXController.uiState.copy(zoomRatio = state.zoomRatio))
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, state.zoomRatio)
                     val span = kotlin.math.ln(state.maxZoomRatio / state.minZoomRatio)
                     val fraction = if (span > 0f && span.isFinite())
