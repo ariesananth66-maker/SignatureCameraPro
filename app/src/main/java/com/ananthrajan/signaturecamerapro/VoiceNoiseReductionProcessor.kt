@@ -52,8 +52,10 @@ internal class VoiceNoiseReductionProcessor : AudioProcessor {
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         if (!processingEnabled) {
-            outputBuffer = inputBuffer
-            outputReady = inputBuffer.hasRemaining()
+            val passthrough = inputBuffer.asReadOnlyBuffer().order(inputBuffer.order())
+            inputBuffer.position(inputBuffer.limit())
+            outputBuffer = passthrough
+            outputReady = passthrough.hasRemaining()
             return
         }
         val input = inputBuffer.asReadOnlyBuffer().order(ByteOrder.nativeOrder())
