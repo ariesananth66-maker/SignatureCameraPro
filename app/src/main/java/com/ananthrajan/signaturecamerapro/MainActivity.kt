@@ -1355,12 +1355,16 @@ class MainActivity : ComponentActivity() {
                 else -> "SD"
             }
             val manager = getSystemService(CAMERA_SERVICE) as CameraManager
-            val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
-                CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
-            val id = findCameraIdForFacing(manager, facing)
-            availableFpsRanges = id?.let {
-                manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
-            } ?: emptyArray()
+            // Read FPS and stabilization capabilities from the exact CameraX-bound
+            // camera. A facing-only lookup can accidentally inspect a different
+            // rear sensor (for example, an auxiliary telephoto/ultrawide camera).
+            val activeCameraId = Camera2CameraInfo.from(activeCamera.cameraInfo).cameraId
+            val activeCharacteristics = if (manager.cameraIdList.contains(activeCameraId)) {
+                manager.getCameraCharacteristics(activeCameraId)
+            } else null
+            availableFpsRanges = activeCharacteristics
+                ?.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                ?: emptyArray()
             val fixedRates = availableFpsRanges.filter { it.lower == it.upper }.map { it.lower }.distinct()
             if (videoFps !in fixedRates || videoFps !in listOf(30, 60)) {
                 videoFps = when {
@@ -1370,9 +1374,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
             videoFpsButton.text = if (videoFps == 0) "FRAME RATE: AUTO" else "FRAME RATE: $videoFps FPS"
-            val stabilizationModes = id?.let {
-                manager.getCameraCharacteristics(it).get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
-            } ?: intArrayOf(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+            val stabilizationModes = activeCharacteristics
+                ?.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
+                ?: intArrayOf(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
             videoStabilizationButton.isEnabled = stabilizationModes.contains(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON)
             if (!videoStabilizationButton.isEnabled) {
                 videoStabilizationEnabled = false
