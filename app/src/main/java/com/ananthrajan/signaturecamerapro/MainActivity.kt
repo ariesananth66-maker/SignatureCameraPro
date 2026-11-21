@@ -236,7 +236,7 @@ class MainActivity : ComponentActivity() {
                     val state = camera?.cameraInfo?.zoomState?.value ?: return true
                     val ratio = (state.zoomRatio * detector.scaleFactor)
                         .coerceIn(state.minZoomRatio, state.maxZoomRatio)
-                    camera?.cameraControl?.setZoomRatio(ratio)
+                    cameraXController.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                     updateLensSelection(ratio)
                     return true
@@ -249,7 +249,7 @@ class MainActivity : ComponentActivity() {
                 override fun onDoubleTap(event: MotionEvent): Boolean {
                     val state = camera?.cameraInfo?.zoomState?.value ?: return true
                     val ratio = 1f.coerceIn(state.minZoomRatio, state.maxZoomRatio)
-                    camera?.cameraControl?.setZoomRatio(ratio)
+                    cameraXController.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                     updateLensSelection(ratio)
                     doubleTapDetected = true
@@ -309,7 +309,7 @@ class MainActivity : ComponentActivity() {
                     // Logarithmic zoom mapping gives finer control near 1x.
                     val zoomSpan = (state.maxZoomRatio / state.minZoomRatio).coerceAtLeast(1f)
                     val ratio = state.minZoomRatio * zoomSpan.pow(progress / 100f)
-                    camera?.cameraControl?.setZoomRatio(ratio)
+                    cameraXController.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                     updateLensSelection(ratio)
                 }
@@ -628,7 +628,7 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this@MainActivity, "Stop recording before switching cameras", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                camera?.cameraControl?.enableTorch(false)
+                cameraXController.setTorch(false)
                 torchEnabled = false
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
@@ -686,7 +686,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (videoMode) {
                     val enabled = !torchEnabled
-                    camera?.cameraControl?.enableTorch(enabled)
+                    cameraXController.setTorch(enabled)
                     torchEnabled = enabled
                     syncFlashButtonLabel()
                 } else {
@@ -866,7 +866,7 @@ class MainActivity : ComponentActivity() {
         }
         if (videoMode == enableVideo) return
         // Mode rebinding disables the hardware torch; clear its UI state as well.
-        camera?.cameraControl?.enableTorch(false)
+        cameraXController.setTorch(false)
         torchEnabled = false
         videoMode = enableVideo
         captureButton.text = if (videoMode) "● REC" else "●"
@@ -1056,7 +1056,7 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this, "$label is outside the supported zoom range", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                camera?.cameraControl?.setZoomRatio(ratio)
+                cameraXController.setZoomRatio(ratio)
                 zoomLabel.text = "LENS VIEW  $label"
                 updateLensSelection(ratio)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
@@ -1316,6 +1316,7 @@ class MainActivity : ComponentActivity() {
                         is VideoRecordEvent.Start -> {
                             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
                             setSettingsExpanded(false)
+                            cameraXController.updateState(cameraXController.uiState.copy(isRecording = true))
                             recordingTimer.base = android.os.SystemClock.elapsedRealtime()
                             recordingTimer.visibility = View.VISIBLE
                             recordingTimer.start()
@@ -1346,6 +1347,7 @@ class MainActivity : ComponentActivity() {
                         }
                         is VideoRecordEvent.Finalize -> {
                             recording = null
+                            cameraXController.updateState(cameraXController.uiState.copy(isRecording = false))
                             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                             updateCaptureButtonAppearance()
                             recordingTimer.stop()
@@ -1379,6 +1381,7 @@ class MainActivity : ComponentActivity() {
                 }
         } catch (e: Exception) {
             recording = null
+            cameraXController.updateState(cameraXController.uiState.copy(isRecording = false))
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             updateCaptureButtonAppearance()
             if (::recordingTimer.isInitialized) {
@@ -1646,7 +1649,7 @@ class MainActivity : ComponentActivity() {
         val activeCamera = camera ?: return
         val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
         exposureIndex = 0.coerceIn(range.lower, range.upper)
-        activeCamera.cameraControl.setExposureCompensationIndex(exposureIndex)
+        cameraXController.setExposureCompensation(exposureIndex)
         exposureLabel.text = "EV  0.0"
         Toast.makeText(this, "Exposure reset to 0 EV", Toast.LENGTH_SHORT).show()
     }
@@ -1655,7 +1658,7 @@ class MainActivity : ComponentActivity() {
         val activeCamera = camera ?: return
         val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
         exposureIndex = (exposureIndex + delta).coerceIn(range.lower, range.upper)
-        activeCamera.cameraControl.setExposureCompensationIndex(exposureIndex)
+        cameraXController.setExposureCompensation(exposureIndex)
         val step = activeCamera.cameraInfo.exposureState.exposureCompensationStep
         val evStops = exposureIndex * step.numerator.toFloat() / step.denominator.toFloat()
         exposureLabel.text = "EV  ${if (evStops > 0) "+" else ""}%.1f".format(Locale.US, evStops)
@@ -1875,6 +1878,10 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalAudioApi::class)
     private fun startCamera() {
+        if (recording != null) {
+            Toast.makeText(this, "Stop recording before changing camera settings", Toast.LENGTH_SHORT).show()
+            return
+        }
         val generation = ++cameraStartGeneration
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
