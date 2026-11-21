@@ -57,6 +57,7 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ExperimentalImageCaptureOutputFormat
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
@@ -139,6 +140,7 @@ class MainActivity : ComponentActivity() {
     private var manualFocusEnabled = false
     private var proModeEnabled = false
     private var imageCapture: ImageCapture? = null
+    private var ultraHdrCaptureEnabled = false
     private var camera: Camera? = null
     private var extensionsManager: ExtensionsManager? = null
     private var extensionsInitialized = false
@@ -1579,8 +1581,9 @@ class MainActivity : ComponentActivity() {
             selectedPhotoExtension == ExtensionMode.HDR -> "HDR"
             else -> "OFF"
         }
-        photoExtensionButton.text = "PHOTO EFFECT: $label"
-        photoExtensionButton.contentDescription = when {
+        val ultraHdrSuffix = if (ultraHdrCaptureEnabled && !videoMode) " • ULTRA HDR" else ""
+        photoExtensionButton.text = "PHOTO EFFECT: $label$ultraHdrSuffix"
+        val effectDescription = when {
             !extensionsInitialized -> "Checking manufacturer camera effects"
             supportedPhotoExtensions.isEmpty() -> "This camera does not expose Bokeh, Night or HDR extensions"
             selectedPhotoExtension == ExtensionMode.BOKEH -> "OEM camera Bokeh extension enabled"
@@ -1588,6 +1591,8 @@ class MainActivity : ComponentActivity() {
             selectedPhotoExtension == ExtensionMode.HDR -> "OEM camera HDR extension enabled"
             else -> "OEM camera effects disabled; tap to choose an available effect"
         }
+        photoExtensionButton.contentDescription = effectDescription +
+            if (ultraHdrCaptureEnabled && !videoMode) ". Ultra HDR photo output is active." else ""
         photoExtensionButton.isEnabled = extensionsInitialized && supportedPhotoExtensions.isNotEmpty() && !videoMode
     }
 
@@ -1694,6 +1699,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalImageCaptureOutputFormat::class)
+    private fun applyUltraHdrIfSupported(
+        builder: ImageCapture.Builder,
+        provider: ProcessCameraProvider,
+        selector: CameraSelector
+    ) {
+        ultraHdrCaptureEnabled = false
+        if (videoMode || selectedPhotoExtension != null) return
+        try {
+            val cameraInfo = provider.getCameraInfo(selector)
+            val supportedFormats = ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
+            if (supportedFormats.contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)) {
+                builder.setOutputFormat(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
+                ultraHdrCaptureEnabled = true
+            }
+        } catch (_: Exception) {
+            // Keep standard JPEG if this camera/HAL does not expose Ultra HDR.
+            ultraHdrCaptureEnabled = false
+        }
+    }
+
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
@@ -1734,6 +1760,7 @@ class MainActivity : ComponentActivity() {
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
                     applyStillImageQualityOptions(imageBuilder)
+                    applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
                     imageCapture = imageBuilder.build()
                     camera = provider.bindToLifecycle(this, activeSelector, preview, imageCapture)
                     refreshPhotoExtensions()
@@ -1771,6 +1798,7 @@ class MainActivity : ComponentActivity() {
                             .setJpegQuality(jpegQuality)
                             .setFlashMode(photoFlashMode)
                         applyStillImageQualityOptions(fallbackImageBuilder)
+                        applyUltraHdrIfSupported(fallbackImageBuilder, provider, cameraSelector)
                         imageCapture = fallbackImageBuilder.build()
                         camera = provider.bindToLifecycle(this, cameraSelector, fallbackPreview, imageCapture)
                         updateManualRanges()
