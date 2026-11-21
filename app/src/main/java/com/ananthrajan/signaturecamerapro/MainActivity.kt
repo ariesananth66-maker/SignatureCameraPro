@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoStabilizationButton: Button
     private lateinit var micNoiseReductionButton: Button
     private lateinit var photoRatioRow: LinearLayout
+    private lateinit var photoRatioLabel: TextView
     private lateinit var videoRatioRow: LinearLayout
     private lateinit var photoRatioButtons: List<Button>
     private lateinit var videoRatioButtons: List<Button>
@@ -662,7 +663,8 @@ class MainActivity : ComponentActivity() {
             smallButton("FULL") { selectPhotoAspectRatio(PhotoAspectRatio.FULL) }
         )
         photoRatioButtons.forEach { photoRatioRow.addView(it, LinearLayout.LayoutParams(0, dp(42), 1f).apply { setMargins(dp(3), 0, dp(3), 0) }) }
-        advancedPanel.addView(TextView(this).apply { text = "PHOTO ASPECT RATIO"; textSize = 10f; setTextColor(0xFFB8B8BE.toInt()); gravity = Gravity.CENTER })
+        photoRatioLabel = TextView(this).apply { text = "PHOTO ASPECT RATIO"; textSize = 10f; setTextColor(0xFFB8B8BE.toInt()); gravity = Gravity.CENTER }
+        advancedPanel.addView(photoRatioLabel)
         advancedPanel.addView(photoRatioRow, LinearLayout.LayoutParams(-1, dp(46)))
 
         videoRatioRow = LinearLayout(this).apply {
@@ -866,10 +868,23 @@ class MainActivity : ComponentActivity() {
         mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
         mainRow.gravity = Gravity.CENTER
-        mainRow.addView(sideControl(flip, "CAMERA"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
-        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(88), dp(88)).apply { setMargins(dp(10), 0, dp(10), 0) })
+        val dockGalleryButton = Button(this).apply {
+            text = "▣"
+            textSize = 25f
+            isAllCaps = false
+            setTextColor(android.graphics.Color.WHITE)
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF222225.toInt()); setStroke(1, 0xFF343438.toInt()) }
+            minWidth = 0
+            minHeight = dp(56)
+            setPadding(dp(4), 0, dp(4), 0)
+            contentDescription = "Open recent photos and videos"
+            setOnClickListener { showRecentCaptures() }
+        }
+        mainRow.addView(sideControl(dockGalleryButton, "GALLERY"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
+        mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(82), dp(88)).apply { setMargins(dp(4), 0, dp(4), 0) })
+        mainRow.addView(sideControl(flip, "FLIP"), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         syncFlashButtonLabel()
-        mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
+        mainRow.addView(sideControl(flashButton, "FLASH", true), LinearLayout.LayoutParams(0, dp(82), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
         videoRow.setPadding(dp(18), dp(3), dp(18), dp(3))
         videoRow.gravity = Gravity.CENTER
@@ -893,6 +908,7 @@ class MainActivity : ComponentActivity() {
             // to its padded content so rows cannot slide over the fixed "v" bar.
             clipChildren = true
             clipToPadding = true
+            clipToOutline = true
             background = GradientDrawable().apply {
                 cornerRadius = dp(20).toFloat()
                 setColor(0xE61C1C1E.toInt())
@@ -1006,6 +1022,8 @@ class MainActivity : ComponentActivity() {
         if (!::photoExtensionButton.isInitialized || !::jpegQualityButton.isInitialized) return
         photoExtensionButton.visibility = if (videoMode) View.GONE else View.VISIBLE
         jpegQualityButton.visibility = if (videoMode) View.GONE else View.VISIBLE
+        photoRatioLabel.visibility = if (videoMode) View.GONE else View.VISIBLE
+        photoRatioRow.visibility = if (videoMode) View.GONE else View.VISIBLE
         if (::videoQualityButton.isInitialized) {
             val visibility = if (videoMode) View.VISIBLE else View.GONE
             videoQualityButton.visibility = visibility
