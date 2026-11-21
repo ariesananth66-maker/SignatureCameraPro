@@ -24,6 +24,9 @@ import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Canvas
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.os.Bundle
 import android.os.Handler
@@ -60,6 +63,7 @@ import androidx.camera.core.AspectRatio
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
@@ -737,6 +741,8 @@ class MainActivity : ComponentActivity() {
                 }
                 cameraXController.setTorch(false)
                 torchEnabled = false
+                resetManualCapture()
+                exposureIndex = 0
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
                 previewView.scaleType = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
@@ -744,7 +750,7 @@ class MainActivity : ComponentActivity() {
                 syncFlashButtonLabel()
                 selectedPhotoExtension = null
                 refreshPhotoExtensions()
-                startCamera()
+                updatePreviewAspectRatioFrame { startCamera() }
             }
         }
         captureButton = Button(this).apply {
@@ -882,7 +888,7 @@ class MainActivity : ComponentActivity() {
             // and expanded states; a fixed margin caused it to sit behind settings.
             panel.post {
                 val params = lensRow.layoutParams as? FrameLayout.LayoutParams ?: return@post
-                params.bottomMargin = panel.height + dp(16)
+                params.bottomMargin = panel.height + dp(24)
                 lensRow.layoutParams = params
             }
         }
@@ -1734,9 +1740,15 @@ class MainActivity : ComponentActivity() {
         if (!videoMode) return
         try {
             val builder = CaptureRequestOptions.Builder()
+            builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
             if (videoFps > 0) {
                 val fpsRange = availableFpsRanges.firstOrNull { it.lower == videoFps && it.upper == videoFps }
                 if (fpsRange != null) builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+            } else {
+                val lowLightRange = availableFpsRanges
+                    .filter { it.lower <= 15 && it.upper >= 30 }
+                    .minByOrNull { it.lower }
+                if (lowLightRange != null) builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, lowLightRange)
             }
             builder.setCaptureRequestOption(
                 CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
@@ -2148,6 +2160,10 @@ class MainActivity : ComponentActivity() {
                 }
                 camera?.cameraInfo?.zoomState?.value?.let { updateLensSelection(it.zoomRatio) }
                 updateScreenFlashPreview()
+                try {
+                    Camera2CameraControl.from(camera!!.cameraControl).clearCaptureRequestOptions()
+                    camera!!.cameraControl.setExposureCompensationIndex(0)
+                } catch (_: Exception) { }
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
             } catch (e: Exception) {
@@ -2647,20 +2663,95 @@ class MainActivity : ComponentActivity() {
             handler.postDelayed(screenFlashHideRunnable!!, 2500L)
         }
         val captureAction = Runnable {
-            capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    if (useScreenFlash) hideScreenFlash()
-                    if (::captureButton.isInitialized) captureButton.isEnabled = true
-                    Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
-                }
-                override fun onError(exception: ImageCaptureException) {
-                    if (useScreenFlash) hideScreenFlash()
-                    if (::captureButton.isInitialized) captureButton.isEnabled = true
-                    Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
-                }
-            })
+            if (cameraXController.uiState.photoAspectRatio == PhotoAspectRatio.FULL) {
+                capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        val saved = try { saveFullFramePhoto(image) } catch (_: Exception) { false } finally { image.close() }
+                        if (useScreenFlash) hideScreenFlash()
+                        if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        Toast.makeText(this@MainActivity, if (saved) "FULL photo saved to Gallery" else "FULL photo save failed", Toast.LENGTH_SHORT).show()
+                    }
+                    override fun onError(exception: ImageCaptureException) {
+                        if (useScreenFlash) hideScreenFlash()
+                        if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
+                    }
+                })
+            } else {
+                capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
+                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                        if (useScreenFlash) hideScreenFlash()
+                        if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
+                    }
+                    override fun onError(exception: ImageCaptureException) {
+                        if (useScreenFlash) hideScreenFlash()
+                        if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
+                    }
+                })
+            }
         }
         if (useScreenFlash) handler.postDelayed(captureAction, 120L) else captureAction.run()
+    }
+
+    private fun saveFullFramePhoto(image: ImageProxy): Boolean {
+        val plane = image.planes.firstOrNull() ?: return false
+        val buffer = plane.buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return false
+        val rotation = image.imageInfo.rotationDegrees
+        val upright = if (rotation != 0) {
+            val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+            Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true).also {
+                if (it !== decoded) decoded.recycle()
+            }
+        } else decoded
+        val root = previewView.parent as? FrameLayout
+        val targetAspect = if (root != null && root.width > 0 && root.height > 0) root.width.toFloat() / root.height.toFloat()
+            else resources.displayMetrics.widthPixels.toFloat() / resources.displayMetrics.heightPixels.toFloat()
+        val sourceAspect = upright.width.toFloat() / upright.height.toFloat()
+        val cropWidth: Int
+        val cropHeight: Int
+        if (sourceAspect > targetAspect) {
+            cropHeight = upright.height
+            cropWidth = (cropHeight * targetAspect).toInt().coerceIn(1, upright.width)
+        } else {
+            cropWidth = upright.width
+            cropHeight = (cropWidth / targetAspect).toInt().coerceIn(1, upright.height)
+        }
+        val cropped = Bitmap.createBitmap(upright, (upright.width - cropWidth) / 2, (upright.height - cropHeight) / 2, cropWidth, cropHeight)
+        if (cropped !== upright) upright.recycle()
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "Signature_FULL_$stamp.jpg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SignatureCameraPro")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        var uri: Uri? = null
+        return try {
+            val savedUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Could not create image file")
+            uri = savedUri
+            contentResolver.openOutputStream(savedUri)?.use { stream ->
+                if (!cropped.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(85, 100), stream)) {
+                    throw IllegalStateException("JPEG encoding failed")
+                }
+            } ?: throw IllegalStateException("Could not open image file")
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                contentResolver.update(savedUri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
+            }
+            true
+        } catch (_: Exception) {
+            uri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) { } }
+            false
+        } finally {
+            if (!cropped.isRecycled) cropped.recycle()
+        }
     }
 
     // A low-level white viewfinder fill gives the front camera preview a
