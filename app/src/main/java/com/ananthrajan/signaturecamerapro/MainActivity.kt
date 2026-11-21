@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var focusOverlay: FocusOverlay
     private lateinit var zoomLabel: TextView
     private lateinit var zoomSlider: SeekBar
+    private lateinit var zoomRulerView: ZoomRulerView
     private lateinit var audioLevelLabel: TextView
     private lateinit var recordingTimer: android.widget.Chronometer
     private lateinit var audioLevelBar: android.widget.ProgressBar
@@ -335,6 +336,7 @@ class MainActivity : ComponentActivity() {
                     cameraXController.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                     updateLensSelection(ratio)
+                    if (::zoomRulerView.isInitialized) zoomRulerView.setProgress(zoomProgressForRatio(ratio, state.minZoomRatio, state.maxZoomRatio))
                     return true
                 }
             })
@@ -348,6 +350,7 @@ class MainActivity : ComponentActivity() {
                     cameraXController.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                     updateLensSelection(ratio)
+                    if (::zoomRulerView.isInitialized) zoomRulerView.setProgress(zoomProgressForRatio(ratio, state.minZoomRatio, state.maxZoomRatio))
                     doubleTapDetected = true
                     return true
                 }
@@ -388,7 +391,7 @@ class MainActivity : ComponentActivity() {
             text = "CAMERA  •  ZOOM 1.0x"
             textSize = 13f
             letterSpacing = 0.04f
-            setTextColor(0xFFF5F5F7.toInt())
+            setTextColor(0xFFFFD60A.toInt())
             gravity = Gravity.CENTER
             setPadding(0, dp(4), 0, dp(2))
         }
@@ -406,10 +409,15 @@ class MainActivity : ComponentActivity() {
                     cameraXController.setZoomRatio(ratio)
                     zoomLabel.text = "ZOOM  %.1fx".format(Locale.US, ratio)
                     updateLensSelection(ratio)
+                    if (::zoomRulerView.isInitialized) zoomRulerView.setProgress(progress)
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
+        }
+        zoomRulerView = ZoomRulerView(this) { progress ->
+            zoomSlider.progress = progress
+            zoomSlider.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
         }
         audioLevelLabel = TextView(this).apply {
             text = "MIC  •  READY"
@@ -498,7 +506,8 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(4), 0, dp(4), dp(6))
             clipChildren = true
         }
-        advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, dp(42)))
+        advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, dp(34)))
+        advancedPanel.addView(zoomRulerView, LinearLayout.LayoutParams(-1, dp(18)))
         // Secondary settings are tucked away so the live viewfinder stays dominant.
         val exposureRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -3024,6 +3033,64 @@ class MainActivity : ComponentActivity() {
         } else if (requestCode == AUDIO_PERMISSION_REQUEST) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED && videoMode) toggleVideoRecording()
             else Toast.makeText(this, "Microphone permission denied; video audio cannot be recorded", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun zoomProgressForRatio(ratio: Float, min: Float, max: Float): Int {
+        val span = (max / min).coerceAtLeast(1f)
+        if (span <= 1f) return 0
+        return ((kotlin.math.ln((ratio / min).coerceAtLeast(1f)) / kotlin.math.ln(span)) * 100f).toInt().coerceIn(0, 100)
+    }
+
+    private class ZoomRulerView(
+        context: android.content.Context,
+        private val onProgressChanged: (Int) -> Unit
+    ) : View(context) {
+        private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF8B8B91.toInt()
+            strokeWidth = context.resources.displayMetrics.density
+        }
+        private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFD60A.toInt()
+            strokeWidth = context.resources.displayMetrics.density * 1.6f
+        }
+        private var progress = 0
+
+        fun setProgress(value: Int) {
+            progress = value.coerceIn(0, 100)
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val count = 41
+            val usable = (width - paddingLeft - paddingRight).toFloat()
+            val step = usable / (count - 1)
+            val centerY = height / 2f
+            for (i in 0 until count) {
+                val x = paddingLeft + i * step
+                val major = i % 5 == 0
+                val active = kotlin.math.abs(i * 100f / (count - 1) - progress) < (100f / (count - 1) / 2f)
+                val paint = if (active) activePaint else tickPaint
+                val length = if (major) height * 0.78f else height * 0.38f
+                canvas.drawLine(x, centerY - length / 2f, x, centerY + length / 2f, paint)
+            }
+            val markerX = paddingLeft + usable * progress / 100f
+            canvas.drawLine(markerX, 0f, markerX, height.toFloat(), activePaint)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
+                    val usable = (width - paddingLeft - paddingRight).toFloat().coerceAtLeast(1f)
+                    val value = (((event.x - paddingLeft) / usable) * 100f).toInt().coerceIn(0, 100)
+                    setProgress(value)
+                    onProgressChanged(value)
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> return true
+            }
+            return true
         }
     }
 
