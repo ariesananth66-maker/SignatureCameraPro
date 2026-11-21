@@ -25,16 +25,19 @@ internal class VoiceNoiseReductionProcessor : AudioProcessor {
     private var previousInput = FloatArray(1)
     private var previousOutput = FloatArray(1)
     private var smoothedGain = 1f
+    private var processingEnabled = false
 
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var outputReady = false
 
     override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        if (inputAudioFormat.encoding != PlatformAudioFormat.ENCODING_PCM_16BIT) {
-            throw AudioProcessor.UnsupportedAudioFormatException(
-                "Microphone cleanup currently requires 16-bit PCM",
-                inputAudioFormat
-            )
+        // CameraX audio must never be lost if an OEM supplies a different PCM encoding.
+        // In that case, keep the original stream untouched and preserve recording audio.
+        processingEnabled = inputAudioFormat.encoding == PlatformAudioFormat.ENCODING_PCM_16BIT
+        if (!processingEnabled) {
+            outputReady = false
+            outputBuffer = AudioProcessor.EMPTY_BUFFER
+            return inputAudioFormat
         }
         sampleRate = inputAudioFormat.sampleRate.coerceAtLeast(8_000)
         channelCount = inputAudioFormat.channelCount.coerceAtLeast(1)
@@ -48,6 +51,11 @@ internal class VoiceNoiseReductionProcessor : AudioProcessor {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
+        if (!processingEnabled) {
+            outputBuffer = inputBuffer
+            outputReady = inputBuffer.hasRemaining()
+            return
+        }
         val input = inputBuffer.asReadOnlyBuffer().order(ByteOrder.nativeOrder())
         val sampleCount = input.remaining() / 2
         if (sampleCount <= 0) {
@@ -110,6 +118,7 @@ internal class VoiceNoiseReductionProcessor : AudioProcessor {
 
     override fun reset() {
         flush()
+        processingEnabled = false
         sampleRate = 44_100
         channelCount = 1
         highPassAlpha = 0.99f
