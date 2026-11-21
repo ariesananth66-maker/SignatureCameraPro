@@ -56,3 +56,25 @@ A GitHub Actions workflow also builds, audits package metadata, checks APK align
 ## Release signing
 
 The default CI artifact is a debug-signed APK. To enable a stable signed release APK, add these repository Actions secrets: `ANDROID_KEYSTORE_BASE64` (base64-encoded JKS/PKCS12 keystore), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Keep the keystore and passwords private; never commit them to the repository or paste them into chat. The same signing key must be retained for future app updates.
+
+### Create the signing key on Windows
+
+Run this in PowerShell on your own computer (with JDK 17 installed). Choose and safely store the passwords when prompted:
+
+```powershell
+keytool -genkeypair -v -keystore signature-camera-release.jks -alias signature-camera-pro -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Keep `signature-camera-release.jks` in a safe, backed-up location. Do not upload it to the repository. Convert it to one line of Base64 for the GitHub secret:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\signature-camera-release.jks")) | Set-Clipboard
+```
+
+In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+- `ANDROID_KEYSTORE_BASE64`: paste the Base64 text from the clipboard
+- `ANDROID_KEYSTORE_PASSWORD`: the keystore password you chose
+- `ANDROID_KEY_ALIAS`: `signature-camera-pro`
+- `ANDROID_KEY_PASSWORD`: the key password you chose (it may be the same as the keystore password)
+
+Never share these values in chat. Back up the original keystore and passwords securely; if they are lost, future updates cannot be signed with the same identity. After adding the secrets, run **Actions → Android CI → Run workflow** to produce the signed release artifact.
