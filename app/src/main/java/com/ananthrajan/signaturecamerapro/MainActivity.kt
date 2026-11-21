@@ -1047,6 +1047,11 @@ class MainActivity : ComponentActivity() {
             val raw = streamMap?.getOutputSizes(ImageFormat.RAW_SENSOR)
                 ?.maxByOrNull { it.width.toLong() * it.height }
             val fps = c.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)?.joinToString()
+            val noiseModes = c.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.joinToString()
+            val hotPixelModes = c.get(CameraCharacteristics.HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES)?.joinToString()
+            val shadingModes = c.get(CameraCharacteristics.SHADING_AVAILABLE_MODES)?.joinToString()
+            val aberrationModes = c.get(CameraCharacteristics.COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES)?.joinToString()
+            val sceneModes = c.get(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES)?.joinToString()
             report.append("\n\nCamera ID ").append(id).append(" • ").append(facing)
                 .append("\nHardware level: ").append(level)
                 .append("\nCapabilities: ").append(capNames.joinToString().ifBlank { "Standard only / not reported" })
@@ -1061,6 +1066,11 @@ class MainActivity : ComponentActivity() {
                 .append("\nShutter range (ns): ").append(shutter?.let { "${it.lower}–${it.upper}" } ?: "Not reported")
                 .append("\nEV compensation steps: ").append(ev?.let { "${it.lower} to ${it.upper}" } ?: "Not reported")
                 .append("\nMax digital zoom: ").append(maxZoom ?: "Not reported")
+                .append("\nNoise-reduction modes: ").append(noiseModes ?: "Not reported")
+                .append("\nHot-pixel modes: ").append(hotPixelModes ?: "Not reported")
+                .append("\nShading modes: ").append(shadingModes ?: "Not reported")
+                .append("\nAberration-correction modes: ").append(aberrationModes ?: "Not reported")
+                .append("\nScene modes (HDR/Night): ").append(sceneModes ?: "Not reported")
                 .append("\nAE frame-rate ranges: ").append(fps ?: "Not reported")
         }
         val body = TextView(this).apply {
@@ -1474,10 +1484,11 @@ class MainActivity : ComponentActivity() {
         val label = when (mode) {
             CaptureRequest.CONTROL_SCENE_MODE_PORTRAIT -> "PORTRAIT (HW)"
             CaptureRequest.CONTROL_SCENE_MODE_NIGHT -> "NIGHT (HW)"
+            CaptureRequest.CONTROL_SCENE_MODE_HDR -> "HDR (HW)"
             else -> "AUTO"
         }
         sceneModeButton.text = "SCENE: $label"
-        sceneModeButton.contentDescription = "Camera hardware scene preset: $label. Not computational portrait blur or multi-frame night processing."
+        sceneModeButton.contentDescription = "Camera hardware scene preset: $label. HDR and Night depend on Motorola camera HAL support; this is not a custom multi-frame pipeline."
         sceneModeButton.isEnabled = supportedSceneModes.size > 1
     }
 
@@ -1610,14 +1621,37 @@ class MainActivity : ComponentActivity() {
             val characteristics = manager.getCameraCharacteristics(cameraId)
             val noiseModes = characteristics.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
                 ?: intArrayOf()
+            val hotPixelModes = characteristics.get(CameraCharacteristics.HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES)
+                ?: intArrayOf()
+            val shadingModes = characteristics.get(CameraCharacteristics.SHADING_AVAILABLE_MODES)
+                ?: intArrayOf()
+            val aberrationModes = characteristics.get(CameraCharacteristics.COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES)
+                ?: intArrayOf()
             val extender = Camera2Interop.Extender(builder)
-            // Prefer the HAL's high-quality denoiser when explicitly supported.
-            // Leave edge enhancement to the vendor's tuned default: forcing HQ
-            // sharpening can exaggerate chroma/luma noise in dim indoor scenes.
+            // Request only image-cleanup modes that this camera HAL explicitly advertises.
+            // Keep edge enhancement at the OEM default to avoid sharpening noise and halos.
             if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
                 extender.setCaptureRequestOption(
                     CaptureRequest.NOISE_REDUCTION_MODE,
                     CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                )
+            }
+            if (hotPixelModes.contains(CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)) {
+                extender.setCaptureRequestOption(
+                    CaptureRequest.HOT_PIXEL_MODE,
+                    CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY
+                )
+            }
+            if (shadingModes.contains(CaptureRequest.SHADING_MODE_HIGH_QUALITY)) {
+                extender.setCaptureRequestOption(
+                    CaptureRequest.SHADING_MODE,
+                    CaptureRequest.SHADING_MODE_HIGH_QUALITY
+                )
+            }
+            if (aberrationModes.contains(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY)) {
+                extender.setCaptureRequestOption(
+                    CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE,
+                    CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY
                 )
             }
         } catch (_: Exception) {
@@ -1737,7 +1771,8 @@ class MainActivity : ComponentActivity() {
             val preferredScenes = listOf(
                 CaptureRequest.CONTROL_SCENE_MODE_DISABLED,
                 CaptureRequest.CONTROL_SCENE_MODE_PORTRAIT,
-                CaptureRequest.CONTROL_SCENE_MODE_NIGHT
+                CaptureRequest.CONTROL_SCENE_MODE_NIGHT,
+                CaptureRequest.CONTROL_SCENE_MODE_HDR
             )
             supportedSceneModes = preferredScenes.filter {
                 it == CaptureRequest.CONTROL_SCENE_MODE_DISABLED || availableScenes.contains(it)
