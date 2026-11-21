@@ -1869,7 +1869,7 @@ class MainActivity : ComponentActivity() {
                             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                             .setJpegQuality(jpegQuality)
                             .setFlashMode(photoFlashMode)
-                        applyStillImageQualityOptions(fallbackImageBuilder)
+                        applyStillImageQualityOptions(fallbackImageBuilder, provider, cameraSelector)
                         applyUltraHdrIfSupported(fallbackImageBuilder, provider, cameraSelector)
                         val fallbackStillUseCase = fallbackImageBuilder.build()
                         imageCapture = fallbackStillUseCase
