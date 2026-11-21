@@ -11,6 +11,7 @@ data class CameraUiState(
     val photoFlashMode: Int = 0,
     val torchEnabled: Boolean = false,
     val photoAspectRatio: PhotoAspectRatio = PhotoAspectRatio.RATIO_4_3,
+    val videoAspectRatio: VideoAspectRatio = VideoAspectRatio.RATIO_16_9,
     val videoQuality: String = "FHD",
     val videoFps: Int = 30,
     val videoStabilizationEnabled: Boolean = false,
@@ -24,4 +25,9 @@ enum class PhotoAspectRatio {
     RATIO_4_3,
     RATIO_16_9,
     FULL
+}
+
+enum class VideoAspectRatio {
+    RATIO_16_9,
+    RATIO_4_3
 }
