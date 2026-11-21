@@ -51,8 +51,8 @@ Output:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-A GitHub Actions workflow also builds, audits package metadata, checks APK alignment and signature, calculates a SHA-256 checksum, and uploads a debug APK artifact.
+A GitHub Actions workflow also builds, audits package metadata, checks APK alignment and signature, calculates a SHA-256 checksum, and uploads a debug APK artifact. When release-signing secrets are configured, it additionally builds, verifies, and uploads a signed release APK.
 
 ## Release signing
 
-The CI artifact is a debug-signed APK, not a Play Store release. A stable release signing key must be configured securely before producing an installable release build intended for long-term updates. Never commit a keystore or signing passwords to the repository.
+The default CI artifact is a debug-signed APK. To enable a stable signed release APK, add these repository Actions secrets: `ANDROID_KEYSTORE_BASE64` (base64-encoded JKS/PKCS12 keystore), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Keep the keystore and passwords private; never commit them to the repository or paste them into chat. The same signing key must be retained for future app updates.

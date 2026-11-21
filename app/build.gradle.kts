@@ -3,6 +3,15 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+val releaseSigningReady = !releaseStoreFile.isNullOrBlank() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.ananthrajan.signaturecamerapro"
     compileSdk = 36
@@ -13,6 +22,26 @@ android {
         targetSdk = 36
         versionCode = 21
         versionName = "1.2.0"
+    }
+
+    if (releaseSigningReady) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     compileOptions {
