@@ -2176,6 +2176,11 @@ class MainActivity : ComponentActivity() {
                 } catch (_: Exception) { }
                 exposureIndex = 0
                 exposureLabel.text = "EV  0"
+                // The reset above clears all Camera2 interop options. Re-apply
+                // the selected video FPS and recording options only after the
+                // final camera bind/reset, otherwise 60 FPS silently falls back
+                // to the camera's default repeating-request range.
+                if (videoMode) applyVideoRequestOptions()
             } catch (e: Exception) {
                 if (ultraHdrCaptureEnabled && selectedPhotoExtension == null && !videoMode) {
                     ultraHdrCaptureEnabled = false
