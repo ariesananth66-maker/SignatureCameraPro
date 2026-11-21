@@ -792,6 +792,14 @@ class MainActivity : ComponentActivity() {
             })
         }
         panel.addView(advancedToggleButton, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(4), dp(4), dp(2)) })
+        if (!landscapeLayout) {
+            // In portrait, keep the chevron above the drawer so settings open
+            // toward the viewfinder, never underneath the shutter dock.
+            panel.removeView(advancedToggleButton)
+            panel.removeView(advancedScroll)
+            panel.addView(advancedToggleButton, 0, LinearLayout.LayoutParams(-1, dp(40)))
+            panel.addView(advancedScroll, 1, LinearLayout.LayoutParams(-1, advancedSettingsHeight))
+        }
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS   •   PINCH TO ZOOM"
             textSize = 10f
