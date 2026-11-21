@@ -367,12 +367,9 @@ class MainActivity : ComponentActivity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(14), dp(12), dp(10))
-            background = GradientDrawable().apply {
-                cornerRadius = 0f
-                colors = intArrayOf(0xDD05070B.toInt(), 0x0005070B)
-                orientation = GradientDrawable.Orientation.TOP_BOTTOM
-            }
+            setPadding(dp(16), dp(12), dp(16), dp(8))
+            // True AMOLED black; keep the top chrome visually quiet.
+            setBackgroundColor(android.graphics.Color.BLACK)
         }
         val title = TextView(this).apply {
             text = "SIGNATURE  •  CAMERA"
@@ -383,10 +380,11 @@ class MainActivity : ComponentActivity() {
         }
         zoomLabel = TextView(this).apply {
             text = "CAMERA  •  ZOOM 1.0x"
-            textSize = 14f
-            setTextColor(-1)
+            textSize = 13f
+            letterSpacing = 0.04f
+            setTextColor(0xFFF5F5F7.toInt())
             gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, dp(2))
+            setPadding(0, dp(4), 0, dp(2))
         }
         zoomSlider = SeekBar(this).apply {
             max = 100
@@ -418,9 +416,9 @@ class MainActivity : ComponentActivity() {
         }
         // Compact iPhone-inspired status strip: keep the live viewfinder dominant.
         title.text = "SIGNATURE"
-        title.textSize = 12f
-        title.letterSpacing = 0.24f
-        title.alpha = 0.82f
+        title.textSize = 11f
+        title.letterSpacing = 0.28f
+        title.alpha = 0.90f
         top.addView(title)
         top.addView(zoomLabel)
         recordingTimer = android.widget.Chronometer(this).apply {
@@ -453,9 +451,9 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(6), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
-                cornerRadius = 24f
-                setColor(0x55222225)
-                setStroke(1, 0x44343438)
+                cornerRadius = dp(24).toFloat()
+                setColor(0xFF141416.toInt())
+                setStroke(dp(1), 0xFF303034.toInt())
             }
         }
         // Lens selector is floated above the bottom camera dock, like a native camera app.
@@ -470,10 +468,10 @@ class MainActivity : ComponentActivity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(14), dp(8), dp(14), dp(8))
-            // Minimal translucent camera dock; the preview remains edge-to-edge.
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            // Solid AMOLED dock; no translucent grey wash over the lower edge.
             background = GradientDrawable().apply {
-                cornerRadii = floatArrayOf(30f, 30f, 30f, 30f, 0f, 0f, 0f, 0f)
+                cornerRadii = floatArrayOf(dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), 0f, 0f, 0f, 0f)
                 setColor(android.graphics.Color.BLACK)
             }
             elevation = 14f
@@ -839,7 +837,7 @@ class MainActivity : ComponentActivity() {
                 setStroke(1, 0xFF343438.toInt())
             }
             button.elevation = 5f
-            column.addView(button, LinearLayout.LayoutParams(dp(58), dp(58)))
+            column.addView(button, LinearLayout.LayoutParams(dp(56), dp(56)))
             val label = if (status) flashStatusLabel else TextView(this).apply {
                 text = caption
                 textSize = 10f
@@ -869,9 +867,9 @@ class MainActivity : ComponentActivity() {
         videoRow.setPadding(dp(18), dp(3), dp(18), dp(3))
         videoRow.gravity = Gravity.CENTER
         videoRow.background = GradientDrawable().apply {
-            cornerRadius = 24f
-            setColor(0x44242B36)
-            setStroke(1, 0x227F91A8)
+            cornerRadius = dp(24).toFloat()
+            setColor(0xFF141416.toInt())
+            setStroke(dp(1), 0xFF303034.toInt())
         }
         videoRow.elevation = 4f
         panel.addView(videoRow, LinearLayout.LayoutParams(-1, dp(54)).apply {
@@ -1234,13 +1232,13 @@ class MainActivity : ComponentActivity() {
             button.setTextColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
             button.tag = ratio
             button.background = GradientDrawable().apply {
-                cornerRadius = 18f
-                setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF2C2C2E.toInt() else 0xCC1C1C1E.toInt())
-                setStroke(1, if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFFFD60A.toInt() else 0x55777777)
+                cornerRadius = dp(22).toFloat()
+                setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF303034.toInt() else 0xFF1C1C1E.toInt())
+                setStroke(dp(1), if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFE5E5EA.toInt() else 0xFF343438.toInt())
             }
             button.minWidth = 0
             button.minHeight = dp(44)
-            button.setPadding(dp(8), 0, dp(8), 0)
+            button.setPadding(dp(10), 0, dp(10), 0)
             button.elevation = 3f
             // Never label a clamped digital zoom as a different physical lens preset.
             // Keep presets disabled when the active CameraX logical camera cannot reach them.
@@ -1307,10 +1305,11 @@ class MainActivity : ComponentActivity() {
             val button = lensRow.getChildAt(i) as? Button ?: continue
             val selected = button === nearest && nearestDistance < 0.22f
             button.background = GradientDrawable().apply {
-                cornerRadius = 18f
-                setColor(if (selected) 0xFFFFD60A.toInt() else 0xFF222225.toInt())
-                setStroke(1, if (selected) 0xFFFFD60A.toInt() else 0xFF343438.toInt())
+                cornerRadius = dp(22).toFloat()
+                setColor(if (selected) 0xFFF2F2F7.toInt() else 0xFF1C1C1E.toInt())
+                setStroke(dp(1), if (selected) 0xFFF2F2F7.toInt() else 0xFF343438.toInt())
             }
+            button.setTextColor(if (selected) 0xFF111114.toInt() else android.graphics.Color.WHITE)
             button.isSelected = selected
         }
     }
