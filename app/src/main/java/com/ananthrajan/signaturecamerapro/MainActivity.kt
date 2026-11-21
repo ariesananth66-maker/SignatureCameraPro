@@ -481,7 +481,7 @@ class MainActivity : ComponentActivity() {
         val advancedPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(4), dp(6), dp(4), dp(6))
+            setPadding(dp(4), 0, dp(4), dp(6))
         }
         advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, dp(42)))
         // Secondary settings are tucked away so the live viewfinder stays dominant.
@@ -526,10 +526,10 @@ class MainActivity : ComponentActivity() {
         }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
         val galleryButton = smallButton("RECENT") { showRecentCaptures() }
-        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
-        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
-        utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
-        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(timerButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(galleryButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        utilityRow.addView(toolsButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
         val proButton = smallButton("PRO CONTROLS") {
             if (!proModeEnabled && selectedPhotoExtension != null) {
                 Toast.makeText(this, "Turn off the OEM photo effect before using manual Pro controls", Toast.LENGTH_SHORT).show()
@@ -543,20 +543,19 @@ class MainActivity : ComponentActivity() {
                 applyManualCapture()
             } else resetManualCapture()
         }
-        utilityRow.addView(proButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
-        val utilityScroll = android.widget.HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-            // HorizontalScrollView is a FrameLayout: its sole direct child
-            // must keep FrameLayout.LayoutParams, never LinearLayout.LayoutParams.
-            addView(utilityRow, FrameLayout.LayoutParams(-2, -2))
+        // Four compact quick controls share the available width; PRO remains a
+        // full-width secondary action so no button is clipped at the screen edge.
+        gridButton.textSize = 9f
+        timerButton.textSize = 9f
+        galleryButton.textSize = 9f
+        toolsButton.textSize = 9f
+        listOf(gridButton, timerButton, galleryButton, toolsButton).forEach {
+            it.setPadding(dp(2), 0, dp(2), 0)
         }
-        for (i in 0 until utilityRow.childCount) {
-            utilityRow.getChildAt(i).layoutParams = LinearLayout.LayoutParams(dp(112), dp(46)).apply {
-                setMargins(dp(3), 0, dp(3), 0)
-            }
-        }
-        advancedPanel.addView(utilityScroll, LinearLayout.LayoutParams(-1, dp(54)))
+        advancedPanel.addView(utilityRow, LinearLayout.LayoutParams(-1, dp(50)))
+        advancedPanel.addView(proButton, LinearLayout.LayoutParams(-1, dp(44)).apply {
+            setMargins(dp(3), dp(3), dp(3), dp(3))
+        })
 
         photoExtensionButton = smallButton("PHOTO EFFECT: CHECKING…") { cyclePhotoExtension() }
         photoExtensionButton.isEnabled = false
@@ -673,7 +672,12 @@ class MainActivity : ComponentActivity() {
             smallButton("4:3") { selectVideoAspectRatio(VideoAspectRatio.RATIO_4_3) }
         )
         videoRatioButtons.forEach { videoRatioRow.addView(it, LinearLayout.LayoutParams(0, dp(42), 1f).apply { setMargins(dp(3), 0, dp(3), 0) }) }
-        advancedPanel.addView(TextView(this).apply { text = "VIDEO ASPECT RATIO"; textSize = 10f; setTextColor(0xFFB8B8BE.toInt()); gravity = Gravity.CENTER })
+        advancedPanel.addView(TextView(this).apply {
+            text = "VIDEO ASPECT RATIO"
+            textSize = 10f
+            setTextColor(0xFFB8B8BE.toInt())
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(-1, dp(22)).apply { topMargin = dp(10) })
         advancedPanel.addView(videoRatioRow, LinearLayout.LayoutParams(-1, dp(46)))
         updateAspectRatioControls()
 
@@ -881,6 +885,8 @@ class MainActivity : ComponentActivity() {
             isFillViewport = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             isVerticalScrollBarEnabled = false
+            setPadding(0, dp(14), 0, dp(8))
+            clipToPadding = false
             background = GradientDrawable().apply {
                 cornerRadius = dp(20).toFloat()
                 setColor(0xE61C1C1E.toInt())
@@ -959,6 +965,20 @@ class MainActivity : ComponentActivity() {
         if (expanded && recording != null) {
             Toast.makeText(this, "Stop recording before opening camera settings", Toast.LENGTH_SHORT).show()
             return
+        }
+        if (expanded && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            // Reserve the bottom mode rail and collapse handle before sizing the
+            // scroll viewport, so the drawer can never grow over PHOTO / VIDEO.
+            val rootHeight = (previewView.parent as? FrameLayout)?.height ?: 0
+            if (rootHeight > 0) {
+                val availableDrawerHeight = (rootHeight - dp(126)).coerceAtLeast(dp(96))
+                settingsDrawer.layoutParams = settingsDrawer.layoutParams.apply {
+                    height = minOf(dp(260), availableDrawerHeight)
+                }
+            }
+            settingsDrawer.scrollTo(0, 0)
+        } else if (!expanded && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            settingsDrawer.layoutParams = settingsDrawer.layoutParams.apply { height = dp(260) }
         }
         settingsDrawer.visibility = if (expanded) View.VISIBLE else View.GONE
         if (::settingsToggleButton.isInitialized) {
