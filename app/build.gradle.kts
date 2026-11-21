@@ -21,7 +21,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 36
-        versionName = "1.3.5"
+        versionName = "1.3.5" // final UI polish build
     }
 
     if (releaseSigningReady) {
