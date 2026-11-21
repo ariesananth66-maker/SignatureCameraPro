@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 26
-        versionName = "1.2.5"
+        versionCode = 27
+        versionName = "1.2.6"
     }
 
     if (releaseSigningReady) {
