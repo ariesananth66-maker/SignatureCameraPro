@@ -187,7 +187,9 @@ class MainActivity : ComponentActivity() {
         manualFocusProgress = cameraPrefs.getInt("manual_focus_progress", 0).coerceIn(0, 1000)
         savedAwbMode = cameraPrefs.getInt("manual_awb_mode", CaptureRequest.CONTROL_AWB_MODE_AUTO)
         buildCameraUi()
-        if (hasCameraPermission()) startCamera()
+        // Wait for PreviewView measurement so its ViewPort is available before
+        // binding Preview + ImageCapture into a shared crop group.
+        if (hasCameraPermission()) previewView.post { startCamera() }
         else requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
     }
 
@@ -2360,7 +2362,9 @@ class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAMERA_PERMISSION_REQUEST) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) startCamera()
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                previewView.post { startCamera() }
+            }
             else Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_LONG).show()
         } else if (requestCode == AUDIO_PERMISSION_REQUEST) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED && videoMode) toggleVideoRecording()
