@@ -55,7 +55,7 @@ jobs:
 
           # Verify package and version metadata in the actual built APK.
           "$AAPT" dump badging "$APK" | tee apk-badging.txt
-          grep -Fq "package: name='com.ananthrajan.signaturecamerapro' versionCode='12' versionName='1.1.1'" apk-badging.txt
+          grep -Fq "package: name='com.ananthrajan.signaturecamerapro' versionCode='13' versionName='1.1.2'" apk-badging.txt
 
           # Confirm alignment and APK signing integrity.
           "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
