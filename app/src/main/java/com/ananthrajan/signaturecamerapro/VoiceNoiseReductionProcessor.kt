@@ -90,8 +90,12 @@ internal class VoiceNoiseReductionProcessor : AudioProcessor {
         val openLevel = 0.0015
         val blend = ((rms - quietFloor) / (openLevel - quietFloor)).coerceIn(0.0, 1.0)
         val targetGain = (0.55 + 0.45 * blend).toFloat()
-        // Fast recovery when speech returns; slower attenuation avoids pumping.
-        val smoothing = if (targetGain > smoothedGain) 0.62f else 0.08f
+        // Use time-based attack/release so behavior stays consistent even when
+        // the audio source changes its PCM buffer size.
+        val blockDurationSeconds = (sampleCount / channelCount).toDouble() / sampleRate.toDouble()
+        val smoothingTimeSeconds = if (targetGain > smoothedGain) 0.025 else 0.180
+        val smoothing = (1.0 - exp(-blockDurationSeconds / smoothingTimeSeconds))
+            .toFloat().coerceIn(0f, 1f)
         smoothedGain += (targetGain - smoothedGain) * smoothing
 
         val outputBytes = sampleCount * 2

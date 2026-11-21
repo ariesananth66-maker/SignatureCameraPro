@@ -5,7 +5,7 @@ Native Android camera application built with Kotlin and CameraX.
 ## Current app
 
 - App ID: `com.ananthrajan.signaturecamerapro`
-- Current source version: **1.1.8** (version code 19)
+- Current source version: **1.1.9** (version code 20)
 - Minimum Android version: Android 8.0 (API 26)
 - Compile / target SDK: 36
 - JDK: 17
@@ -22,7 +22,7 @@ Native Android camera application built with Kotlin and CameraX.
 - Ultra HDR JPEG output when CameraX and the selected camera report support; otherwise standard JPEG
 - Hardware still-image noise-reduction, hot-pixel, shading, and aberration modes are requested only when advertised by the camera HAL
 - Video recording through CameraX Recorder
-- Optional conservative microphone cleanup for supported PCM 16-bit audio: low-frequency rumble filtering and a shallow downward expander tuned to preserve quieter speech
+- Optional conservative microphone cleanup for supported PCM 16-bit audio: low-frequency rumble filtering and a shallow downward expander with time-based attack/release tuned to preserve quieter speech
 
 ## Important limitations
 
