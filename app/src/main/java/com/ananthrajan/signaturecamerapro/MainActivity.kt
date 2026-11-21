@@ -320,7 +320,7 @@ class MainActivity : ComponentActivity() {
             text = "MIC  •  READY"
             textSize = 11f
             letterSpacing = 0.08f
-            setTextColor(0xFFB8C7D9.toInt())
+            setTextColor(0xFF9E9EA4.toInt())
             gravity = Gravity.CENTER
             setPadding(0, dp(3), 0, dp(2))
             contentDescription = "Microphone recording level"
@@ -348,7 +348,7 @@ class MainActivity : ComponentActivity() {
         audioLevelBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
-            progressTintList = ColorStateList.valueOf(0xFF55D6A0.toInt())
+            progressTintList = ColorStateList.valueOf(0xFF30D158.toInt())
             progressBackgroundTintList = ColorStateList.valueOf(0x55777777)
             contentDescription = "Live microphone input level"
         }
@@ -363,8 +363,8 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(6), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = 24f
-                setColor(0x55232B38)
-                setStroke(1, 0x447F91A8)
+                setColor(0x55222225)
+                setStroke(1, 0x44343438)
             }
         }
         // Lens selector is floated above the bottom camera dock, like a native camera app.
@@ -484,7 +484,7 @@ class MainActivity : ComponentActivity() {
         proPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF172235.toInt()) }
+            background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF161618.toInt()) }
             visibility = View.GONE
         }
         isoValue = TextView(this).apply { text = "ISO 400"; textSize = 12f; setTextColor(-1) }
@@ -710,8 +710,8 @@ class MainActivity : ComponentActivity() {
             }
             button.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(0xCC263243.toInt())
-                setStroke(1, 0x668FA6C4)
+                setColor(0xFF222225.toInt())
+                setStroke(1, 0xFF343438)
             }
             button.elevation = 5f
             column.addView(button, LinearLayout.LayoutParams(dp(58), dp(58)))
@@ -1100,8 +1100,8 @@ class MainActivity : ComponentActivity() {
             val selected = button === nearest && nearestDistance < 0.22f
             button.background = GradientDrawable().apply {
                 cornerRadius = 18f
-                setColor(if (selected) 0xFF1677FF.toInt() else 0xCC263243.toInt())
-                setStroke(1, if (selected) 0xFF70B5FF.toInt() else 0x668FA6C4)
+                setColor(if (selected) 0xFFFFD60A.toInt() else 0xFF222225.toInt())
+                setStroke(1, if (selected) 0xFFFFD60A.toInt() else 0xFF343438)
             }
             button.isSelected = selected
         }
