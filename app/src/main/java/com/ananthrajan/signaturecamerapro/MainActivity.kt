@@ -14,6 +14,7 @@ import java.io.File
 import android.net.Uri
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import android.hardware.camera2.CameraManager
 import android.graphics.ImageFormat
@@ -1464,15 +1465,12 @@ class MainActivity : ComponentActivity() {
             // video only when the active sensor explicitly advertises support.
             // Never force an unsupported mode or add software smoothing.
             val manager = getSystemService(CAMERA_SERVICE) as CameraManager
-            val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
-                CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
-            val cameraId = manager.cameraIdList.firstOrNull { id ->
-                manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == facing
-            }
-            val noiseModes = cameraId?.let { id ->
-                manager.getCameraCharacteristics(id)
+            // Match the exact active CameraX camera on multi-camera devices.
+            val cameraId = Camera2CameraInfo.from(activeCamera.cameraInfo).cameraId
+            val noiseModes = (if (manager.cameraIdList.contains(cameraId)) {
+                manager.getCameraCharacteristics(cameraId)
                     .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
-            } ?: intArrayOf()
+            } else null) ?: intArrayOf()
             if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
                 builder.setCaptureRequestOption(
                     CaptureRequest.NOISE_REDUCTION_MODE,
@@ -1665,26 +1663,14 @@ class MainActivity : ComponentActivity() {
     // Ask the device camera HAL for its best supported still-image noise/detail
     // processing. Unsupported modes are never forced, and OEM extensions keep
     // ownership of their own Night/HDR processing pipeline.
-    private fun applyStillImageQualityOptions(builder: ImageCapture.Builder) {
+    private fun applyStillImageQualityOptions(builder: ImageCapture.Builder, provider: ProcessCameraProvider, selector: CameraSelector) {
         if (selectedPhotoExtension != null) return
         try {
             val manager = getSystemService(CAMERA_SERVICE) as CameraManager
-            val desiredFacing = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
-                CameraCharacteristics.LENS_FACING_FRONT
-            } else {
-                CameraCharacteristics.LENS_FACING_BACK
-            }
-            val cameraIds = manager.cameraIdList.filter { id ->
-                manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == desiredFacing
-            }
-            // Prefer the logical multi-camera ID so its reported capabilities and
-            // physical-lens group match the camera currently bound by CameraX.
-            val cameraId = cameraIds.firstOrNull { id ->
-                val chars = manager.getCameraCharacteristics(id)
-                val caps = chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
-                caps.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) &&
-                    chars.physicalCameraIds.isNotEmpty()
-            } ?: cameraIds.firstOrNull() ?: return
+            // Use the exact Camera2 ID selected by CameraX instead of guessing
+            // from the first camera that shares the same front/rear facing.
+            val cameraId = Camera2CameraInfo.from(provider.getCameraInfo(selector)).cameraId
+            if (!manager.cameraIdList.contains(cameraId)) return
             val characteristics = manager.getCameraCharacteristics(cameraId)
             val noiseModes = characteristics.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
                 ?: intArrayOf()
@@ -1822,7 +1808,7 @@ class MainActivity : ComponentActivity() {
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
-                    applyStillImageQualityOptions(imageBuilder)
+                    applyStillImageQualityOptions(imageBuilder, provider, activeSelector)
                     applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
                     val stillUseCase = imageBuilder.build()
                     imageCapture = stillUseCase
@@ -1861,7 +1847,7 @@ class MainActivity : ComponentActivity() {
                             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                             .setJpegQuality(jpegQuality)
                             .setFlashMode(photoFlashMode)
-                        applyStillImageQualityOptions(fallbackImageBuilder)
+                        applyStillImageQualityOptions(fallbackImageBuilder, provider, cameraSelector)
                         val fallbackStillUseCase = fallbackImageBuilder.build()
                         imageCapture = fallbackStillUseCase
                         camera = bindCameraUseCases(provider, cameraSelector, fallbackPreview, fallbackStillUseCase)
