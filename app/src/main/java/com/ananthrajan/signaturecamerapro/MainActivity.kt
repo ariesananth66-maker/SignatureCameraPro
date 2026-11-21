@@ -44,6 +44,7 @@ import android.widget.Toast
 import android.graphics.drawable.GradientDrawable
 import androidx.activity.ComponentActivity
 import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.ExperimentalAudioApi
 import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
@@ -99,6 +100,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var videoQualityButton: Button
     private lateinit var videoFpsButton: Button
     private lateinit var videoStabilizationButton: Button
+    private lateinit var micNoiseReductionButton: Button
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
     private lateinit var flashStatusLabel: TextView
@@ -118,6 +120,7 @@ class MainActivity : ComponentActivity() {
     private var videoQuality = Quality.FHD
     private var videoFps = 30
     private var videoStabilizationEnabled = false
+    private var micNoiseReductionEnabled = true
     private var availableFpsRanges: Array<Range<Int>> = emptyArray()
     private var activeIsoMin = 100
     private var activeIsoMax = 12800
@@ -175,6 +178,7 @@ class MainActivity : ComponentActivity() {
         }
         videoFps = cameraPrefs.getInt("video_fps", 30).let { if (it == 60) 60 else if (it == 30) 30 else 0 }
         videoStabilizationEnabled = cameraPrefs.getBoolean("video_stabilization", false)
+        micNoiseReductionEnabled = cameraPrefs.getBoolean("mic_noise_reduction_enabled", true)
         manualIso = cameraPrefs.getInt("manual_iso", 400).coerceIn(50, 51200)
         manualShutterNs = cameraPrefs.getLong("manual_shutter_ns", 10_000_000L).coerceIn(1_000L, 1_000_000_000L)
         manualFocusProgress = cameraPrefs.getInt("manual_focus_progress", 0).coerceIn(0, 1000)
@@ -553,6 +557,22 @@ class MainActivity : ComponentActivity() {
         advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), dp(4), dp(3), dp(4)) })
         advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
         advancedPanel.addView(videoStabilizationButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
+        micNoiseReductionButton = smallButton(if (micNoiseReductionEnabled) "MIC CLEAN: ON" else "MIC CLEAN: OFF") {
+            if (!videoMode) {
+                Toast.makeText(this, "Microphone cleanup is for video recording", Toast.LENGTH_SHORT).show()
+                return@smallButton
+            }
+            if (recording != null) {
+                Toast.makeText(this, "Stop recording before changing microphone processing", Toast.LENGTH_SHORT).show()
+                return@smallButton
+            }
+            micNoiseReductionEnabled = !micNoiseReductionEnabled
+            getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+                .putBoolean("mic_noise_reduction_enabled", micNoiseReductionEnabled).apply()
+            updateMicNoiseReductionButton()
+            startCamera()
+        }
+        advancedPanel.addView(micNoiseReductionButton, LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(dp(3), 0, dp(3), dp(4)) })
 
         val mainRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -793,7 +813,21 @@ class MainActivity : ComponentActivity() {
         if (::audioLevelBar.isInitialized) {
             audioLevelBar.visibility = if (videoMode) View.VISIBLE else View.GONE
         }
+        updateMicNoiseReductionButton()
         updateCaptureButtonAppearance()
+    }
+
+    private fun updateMicNoiseReductionButton() {
+        if (!::micNoiseReductionButton.isInitialized) return
+        micNoiseReductionButton.text = when {
+            !videoMode -> "MIC CLEAN: VIDEO ONLY"
+            micNoiseReductionEnabled -> "MIC CLEAN: ON"
+            else -> "MIC CLEAN: OFF"
+        }
+        micNoiseReductionButton.isEnabled = videoMode && recording == null
+        micNoiseReductionButton.alpha = if (videoMode) 1f else 0.48f
+        micNoiseReductionButton.contentDescription =
+            "Video microphone cleanup ${if (micNoiseReductionEnabled) "enabled" else "disabled"}; reduces low-frequency rumble and background noise during pauses"
     }
 
     // A camera-style shutter: white ring for stills, red center for video,
@@ -1662,6 +1696,7 @@ class MainActivity : ComponentActivity() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    @OptIn(ExperimentalAudioApi::class)
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
@@ -1676,9 +1711,12 @@ class MainActivity : ComponentActivity() {
                 } else cameraSelector
                 if (videoMode) {
                     imageCapture = null
-                    val recorder = Recorder.Builder()
+                    val recorderBuilder = Recorder.Builder()
                         .setQualitySelector(QualitySelector.from(videoQuality, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)))
-                        .build()
+                    if (micNoiseReductionEnabled) {
+                        recorderBuilder.setAudioProcessors(listOf(VoiceNoiseReductionProcessor()))
+                    }
+                    val recorder = recorderBuilder.build()
                     videoCapture = VideoCapture.withOutput(recorder)
                     camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
                     updateVideoCapabilities()
