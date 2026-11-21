@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 38
-        versionName = "1.3.7" // top drop-down settings and quick controls
+        versionCode = 39
+        versionName = "1.3.8" // gallery thumbnail, persistent drawer and minimal camera dock
     }
 
     if (releaseSigningReady) {
