@@ -475,13 +475,16 @@ class MainActivity : ComponentActivity() {
                 setColor(android.graphics.Color.BLACK)
             }
             elevation = 14f
-            clipChildren = false
-            clipToPadding = false
+            // Keep every drawer child inside the dock bounds; scroll content must
+            // never paint over the fixed collapse handle or the mode rail.
+            clipChildren = true
+            clipToPadding = true
         }
         val advancedPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(4), 0, dp(4), dp(6))
+            clipChildren = true
         }
         advancedPanel.addView(zoomSlider, LinearLayout.LayoutParams(-1, dp(42)))
         // Secondary settings are tucked away so the live viewfinder stays dominant.
@@ -677,7 +680,7 @@ class MainActivity : ComponentActivity() {
             textSize = 10f
             setTextColor(0xFFB8B8BE.toInt())
             gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(-1, dp(22)).apply { topMargin = dp(10) })
+        }, LinearLayout.LayoutParams(-1, dp(22)).apply { topMargin = dp(12) })
         advancedPanel.addView(videoRatioRow, LinearLayout.LayoutParams(-1, dp(46)))
         updateAspectRatioControls()
 
@@ -886,7 +889,10 @@ class MainActivity : ComponentActivity() {
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             isVerticalScrollBarEnabled = false
             setPadding(0, dp(14), 0, dp(8))
-            clipToPadding = false
+            // The 14dp top inset belongs to the scroll viewport. Clip children
+            // to its padded content so rows cannot slide over the fixed "v" bar.
+            clipChildren = true
+            clipToPadding = true
             background = GradientDrawable().apply {
                 cornerRadius = dp(20).toFloat()
                 setColor(0xE61C1C1E.toInt())
@@ -896,7 +902,10 @@ class MainActivity : ComponentActivity() {
         }
         settingsDrawer = advancedScroll
         val advancedSettingsHeight = if (landscapeLayout) dp(104) else dp(260)
-        panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, advancedSettingsHeight))
+        panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, advancedSettingsHeight).apply {
+            // A visible gap separates the drawer sheet from the PHOTO / VIDEO pill.
+            bottomMargin = dp(10)
+        })
         fun positionLensRailAboveDock() {
             // Keep the lens selector completely clear of the dock in both collapsed
             // and expanded states; a fixed margin caused it to sit behind settings.
@@ -967,13 +976,14 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (expanded && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-            // Reserve the bottom mode rail and collapse handle before sizing the
-            // scroll viewport, so the drawer can never grow over PHOTO / VIDEO.
+            // Reserve the fixed collapse header, mode rail, dock padding and
+            // a dedicated 10dp gap. Never force a minimum height that could
+            // push the drawer into the PHOTO / VIDEO pill on shorter screens.
             val rootHeight = (previewView.parent as? FrameLayout)?.height ?: 0
             if (rootHeight > 0) {
-                val availableDrawerHeight = (rootHeight - dp(126)).coerceAtLeast(dp(96))
+                val availableDrawerHeight = (rootHeight - dp(144)).coerceAtLeast(0)
                 settingsDrawer.layoutParams = settingsDrawer.layoutParams.apply {
-                    height = minOf(dp(260), availableDrawerHeight)
+                    height = minOf(dp(240), availableDrawerHeight)
                 }
             }
             settingsDrawer.scrollTo(0, 0)
