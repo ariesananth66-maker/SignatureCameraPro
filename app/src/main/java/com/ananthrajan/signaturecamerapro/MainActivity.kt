@@ -201,7 +201,8 @@ class MainActivity : ComponentActivity() {
     private fun buildCameraUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         previewView = PreviewView(this).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            scaleType = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
+                PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
         root.addView(previewView, FrameLayout.LayoutParams(-1, -1))
@@ -614,6 +615,8 @@ class MainActivity : ComponentActivity() {
                 torchEnabled = false
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                     CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                previewView.scaleType = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
+                    PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
                 syncFlashButtonLabel()
                 selectedPhotoExtension = null
                 refreshPhotoExtensions()
@@ -1457,6 +1460,25 @@ class MainActivity : ComponentActivity() {
                 if (videoStabilizationEnabled) CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
                 else CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF
             )
+            // Prefer the camera HAL's high-quality temporal/spatial denoising for
+            // video only when the active sensor explicitly advertises support.
+            // Never force an unsupported mode or add software smoothing.
+            val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+            val facing = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
+                CameraCharacteristics.LENS_FACING_BACK else CameraCharacteristics.LENS_FACING_FRONT
+            val cameraId = manager.cameraIdList.firstOrNull { id ->
+                manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == facing
+            }
+            val noiseModes = cameraId?.let { id ->
+                manager.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
+            } ?: intArrayOf()
+            if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
+                builder.setCaptureRequestOption(
+                    CaptureRequest.NOISE_REDUCTION_MODE,
+                    CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                )
+            }
             Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(builder.build())
         } catch (e: Exception) {
             Toast.makeText(this, "Video setting not applied: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
