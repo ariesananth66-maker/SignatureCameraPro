@@ -458,7 +458,7 @@ class MainActivity : ComponentActivity() {
         val utilityScroll = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            addView(utilityRow, android.widget.HorizontalScrollView.LayoutParams(-2, -2))
+            addView(utilityRow, android.view.ViewGroup.LayoutParams(-2, -2))
         }
         utilityRow.layoutParams = LinearLayout.LayoutParams(-2, -2)
         for (i in 0 until utilityRow.childCount) {
