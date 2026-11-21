@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 36
-        versionName = "1.3.5" // final UI polish build
+        versionCode = 37
+        versionName = "1.3.6" // top controls and centered camera dock
     }
 
     if (releaseSigningReady) {
