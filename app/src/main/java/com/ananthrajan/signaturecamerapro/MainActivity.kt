@@ -2096,7 +2096,7 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this, "Ultra HDR could not bind on this camera mode; using standard JPEG", Toast.LENGTH_LONG).show()
                     try {
                         provider.unbindAll()
-                        val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+                        val fallbackPreview = Preview.Builder().setResolutionSelector(currentResolutionSelector(false)).build().also { it.surfaceProvider = previewView.surfaceProvider }
                         val fallbackImageBuilder = ImageCapture.Builder()
                             .setResolutionSelector(currentResolutionSelector(false))
                             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
@@ -2118,7 +2118,7 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this, "OEM photo effect could not start; returning to standard camera", Toast.LENGTH_LONG).show()
                     try {
                         provider.unbindAll()
-                        val fallbackPreview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+                        val fallbackPreview = Preview.Builder().setResolutionSelector(currentResolutionSelector(false)).build().also { it.surfaceProvider = previewView.surfaceProvider }
                         val fallbackImageBuilder = ImageCapture.Builder()
                             .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build())
                             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
