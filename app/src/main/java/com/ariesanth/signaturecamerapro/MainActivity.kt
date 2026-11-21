@@ -1192,7 +1192,7 @@ class MainActivity : ComponentActivity() {
                             val dbfs = 20.0 * kotlin.math.log10(amplitude.coerceAtLeast(0.00001))
                             if (stats.audioState == androidx.camera.video.AudioStats.AUDIO_STATE_ACTIVE && amplitude > 0.0) {
                                 micPeakAmplitude = maxOf(micPeakAmplitude, dbfs)
-                                micAmplitudeTotal += dbfs
+                                micAmplitudeTotal += amplitude
                                 micAmplitudeSamples++
                             }
                             audioLevelBar.progress = (amplitude * 100.0).toInt().coerceIn(0, 100)
@@ -1213,7 +1213,8 @@ class MainActivity : ComponentActivity() {
                             recordingTimer.visibility = View.GONE
                             audioLevelBar.progress = 0
                             if (micAmplitudeSamples > 0) {
-                                val averageDbfs = micAmplitudeTotal / micAmplitudeSamples
+                                val averageAmplitude = micAmplitudeTotal / micAmplitudeSamples
+                                val averageDbfs = 20.0 * kotlin.math.log10(averageAmplitude.coerceAtLeast(0.00001))
                                 lastMicLevelSummary = "MIC PEAK ${micPeakAmplitude.toInt()} dBFS  •  AVG ${averageDbfs.toInt()} dBFS"
                             } else {
                                 lastMicLevelSummary = when (micAudioState) {
