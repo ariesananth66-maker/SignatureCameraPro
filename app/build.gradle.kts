@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 39
-        versionName = "1.3.8" // gallery thumbnail, persistent drawer and minimal camera dock
+        versionCode = 40
+        versionName = "1.3.9" // tactile zoom ruler and yellow zoom readout
     }
 
     if (releaseSigningReady) {
