@@ -53,9 +53,12 @@ jobs:
             exit 1
           fi
 
-          # Verify package and version metadata in the actual built APK.
+          # Verify package and version metadata against the app module configuration.
+          VERSION_CODE="$(sed -n 's/.*versionCode = \\([0-9][0-9]*\\).*/\\1/p' app/build.gradle.kts | head -n 1)"
+          VERSION_NAME="$(sed -n 's/.*versionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts | head -n 1)"
+          test -n "$VERSION_CODE" && test -n "$VERSION_NAME"
           "$AAPT" dump badging "$APK" | tee apk-badging.txt
-          grep -Fq "package: name='com.ananthrajan.signaturecamerapro' versionCode='21' versionName='1.2.0'" apk-badging.txt
+          grep -Fq "package: name='com.ananthrajan.signaturecamerapro' versionCode='$VERSION_CODE' versionName='$VERSION_NAME'" apk-badging.txt
 
           # Confirm alignment and APK signing integrity.
           "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
@@ -91,7 +94,7 @@ jobs:
           BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
           "$BUILD_TOOLS/zipalign" -c -v 4 "$RELEASE_APK"
           "$BUILD_TOOLS/apksigner" verify --verbose "$RELEASE_APK"
-          "$BUILD_TOOLS/aapt" dump badging "$RELEASE_APK" | grep -Fq "package: name='com.ananthrajan.signaturecamerapro' versionCode='21' versionName='1.2.0'"
+          "$BUILD_TOOLS/aapt" dump badging "$RELEASE_APK" | grep -Fq "package: name='com.ananthrajan.signaturecamerapro' versionCode='$VERSION_CODE' versionName='$VERSION_NAME'"
           sha256sum "$RELEASE_APK" | tee "$RELEASE_APK.sha256"
           echo "built=true" >> "$GITHUB_OUTPUT"
 
