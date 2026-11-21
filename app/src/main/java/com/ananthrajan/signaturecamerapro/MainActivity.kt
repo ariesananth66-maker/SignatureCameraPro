@@ -118,6 +118,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var jpegQualityButton: Button
     private lateinit var settingsToggleButton: Button
     private lateinit var settingsDrawer: ScrollView
+    private lateinit var ratioQuickButton: Button
+    private lateinit var modeQuickButton: Button
     private lateinit var mainControlsRow: LinearLayout
     private lateinit var dockHint: TextView
     private lateinit var captureButton: Button
@@ -927,10 +929,7 @@ class MainActivity : ComponentActivity() {
         }
         settingsDrawer = advancedScroll
         val advancedSettingsHeight = if (landscapeLayout) dp(104) else dp(260)
-        panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, advancedSettingsHeight).apply {
-            // A visible gap separates the drawer sheet from the PHOTO / VIDEO pill.
-            bottomMargin = dp(10)
-        })
+        // Settings sheet is attached to the root as a top drop-down overlay.
         fun positionLensRailAboveDock() {
             // Keep the lens selector completely clear of the dock in both collapsed
             // and expanded states; a fixed margin caused it to sit behind settings.
@@ -958,18 +957,23 @@ class MainActivity : ComponentActivity() {
             })
         }
         // Keep drawer toggle in the safe top action row, clear of the shutter dock.
-        val flashTopControl = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            addView(flashButton, LinearLayout.LayoutParams(dp(42), dp(40)))
-            addView(flashStatusLabel, LinearLayout.LayoutParams(dp(82), dp(40)))
-        }
-        flashStatusLabel.textSize = 8f
-        flashStatusLabel.maxLines = 1
-        topHeader.addView(flashTopControl, LinearLayout.LayoutParams(dp(124), dp(42)))
-        topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
-            leftMargin = dp(4)
-        })
+        title.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        title.textSize = 10f
+        title.letterSpacing = 0.16f
+        topHeader.addView(flashButton, LinearLayout.LayoutParams(dp(42), dp(42)))
+        ratioQuickButton = smallButton("4:3") {
+            if (videoMode) selectVideoAspectRatio(if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_16_9) VideoAspectRatio.RATIO_4_3 else VideoAspectRatio.RATIO_16_9)
+            else selectPhotoAspectRatio(when (cameraXController.uiState.photoAspectRatio) {
+                PhotoAspectRatio.RATIO_4_3 -> PhotoAspectRatio.RATIO_16_9
+                PhotoAspectRatio.RATIO_16_9 -> PhotoAspectRatio.FULL
+                PhotoAspectRatio.FULL -> PhotoAspectRatio.RATIO_4_3
+            })
+        }.apply { textSize = 10f; setPadding(dp(3), 0, dp(3), 0) }
+        topHeader.addView(ratioQuickButton, LinearLayout.LayoutParams(dp(54), dp(40)).apply { leftMargin = dp(3) })
+        modeQuickButton = smallButton("PHOTO") { if (videoMode) cycleVideoQuality() else cyclePhotoExtension() }
+            .apply { textSize = 9f; setPadding(dp(2), 0, dp(2), 0) }
+        topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
+        topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(42)).apply { leftMargin = dp(3) })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS   •   PINCH TO ZOOM"
             textSize = 10f
@@ -981,11 +985,20 @@ class MainActivity : ComponentActivity() {
         cameraDockPanel = panel
         topChrome = top
         root.addView(panel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        root.addView(advancedScroll, FrameLayout.LayoutParams(-1, dp(240), Gravity.TOP).apply {
+            leftMargin = dp(14); rightMargin = dp(14); topMargin = dp(96)
+        })
         root.setOnApplyWindowInsetsListener { _, insets ->
             val params = panel.layoutParams as? FrameLayout.LayoutParams
-            if (params != null) {
-                params.bottomMargin = insets.systemWindowInsetBottom
-                panel.layoutParams = params
+            if (params != null) { params.bottomMargin = insets.systemWindowInsetBottom; panel.layoutParams = params }
+            val topParams = top.layoutParams as? FrameLayout.LayoutParams
+            if (topParams != null) { topParams.topMargin = insets.systemWindowInsetTop; top.layoutParams = topParams }
+            val sheetParams = advancedScroll.layoutParams as? FrameLayout.LayoutParams
+            if (sheetParams != null) {
+                sheetParams.topMargin = insets.systemWindowInsetTop + top.height + dp(8)
+                val free = (root.height - panel.height - sheetParams.topMargin - dp(12)).coerceAtLeast(dp(96))
+                sheetParams.height = minOf((root.height * 0.46f).toInt().coerceAtLeast(dp(96)), free)
+                advancedScroll.layoutParams = sheetParams
             }
             insets
         }
@@ -1002,6 +1015,7 @@ class MainActivity : ComponentActivity() {
         lensRow.bringToFront()
         updateChromeForAspectRatio()
         updateModeSpecificSettings()
+        updateQuickTopControls()
     }
 
     private fun updateChromeForAspectRatio() {
@@ -1026,31 +1040,27 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Stop recording before opening camera settings", Toast.LENGTH_SHORT).show()
             return
         }
-        if (expanded && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-            // Reserve the fixed collapse header, mode rail, dock padding and
-            // a dedicated 10dp gap. Never force a minimum height that could
-            // push the drawer into the PHOTO / VIDEO pill on shorter screens.
-            val rootHeight = (previewView.parent as? FrameLayout)?.height ?: 0
-            if (rootHeight > 0) {
-                val availableDrawerHeight = (rootHeight - dp(144)).coerceAtLeast(0)
-                settingsDrawer.layoutParams = settingsDrawer.layoutParams.apply {
-                    height = minOf(dp(240), availableDrawerHeight)
-                }
+        if (expanded) {
+            val root = previewView.parent as? FrameLayout
+            val h = root?.height ?: 0
+            if (h > 0) {
+                val topInset = root?.rootWindowInsets?.systemWindowInsetTop ?: 0
+                val topHeight = if (::topChrome.isInitialized) topChrome.height else dp(56)
+                val dockHeight = if (::cameraDockPanel.isInitialized) cameraDockPanel.height else dp(220)
+                val topMargin = topInset + topHeight + dp(8)
+                val free = (h - dockHeight - topMargin - dp(12)).coerceAtLeast(dp(96))
+                settingsDrawer.layoutParams = settingsDrawer.layoutParams.apply { height = minOf((h * 0.46f).toInt().coerceAtLeast(dp(96)), free) }
             }
             settingsDrawer.scrollTo(0, 0)
-        } else if (!expanded && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-            settingsDrawer.layoutParams = settingsDrawer.layoutParams.apply { height = dp(260) }
         }
         settingsDrawer.visibility = if (expanded) View.VISIBLE else View.GONE
         if (::settingsToggleButton.isInitialized) {
             settingsToggleButton.text = if (expanded) "⌄" else "⌃"
             settingsToggleButton.contentDescription = if (expanded) "Hide camera settings" else "Open camera settings"
         }
-        if (::mainControlsRow.isInitialized) mainControlsRow.visibility = if (expanded) View.GONE else View.VISIBLE
+        if (::mainControlsRow.isInitialized) mainControlsRow.visibility = View.VISIBLE
         if (::dockHint.isInitialized) dockHint.visibility = if (expanded) View.GONE else View.VISIBLE
-        if (::lensRow.isInitialized && resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-            lensRow.visibility = if (expanded) View.GONE else View.VISIBLE
-        }
+        if (::lensRow.isInitialized) lensRow.visibility = View.VISIBLE
     }
 
     private fun updateModeSpecificSettings() {
@@ -1116,6 +1126,7 @@ class MainActivity : ComponentActivity() {
         if (!::photoRatioRow.isInitialized || !::videoRatioRow.isInitialized) return
         photoRatioRow.visibility = if (videoMode) View.GONE else View.VISIBLE
         videoRatioRow.visibility = if (videoMode) View.VISIBLE else View.GONE
+        updateQuickTopControls()
         val selectedPhoto = cameraXController.uiState.photoAspectRatio
         photoRatioButtons.forEachIndexed { index, button ->
             val selected = when (index) {
@@ -1153,6 +1164,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
             .putString("photo_aspect_ratio", ratio.name).apply()
         updateAspectRatioControls()
+        updateQuickTopControls()
         updateChromeForAspectRatio()
         updatePreviewAspectRatioFrame { startCamera() }
     }
@@ -1167,6 +1179,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
             .putString("video_aspect_ratio", ratio.name).apply()
         updateAspectRatioControls()
+        updateQuickTopControls()
         updateChromeForAspectRatio()
         updatePreviewAspectRatioFrame { startCamera() }
     }
@@ -1249,6 +1262,21 @@ class MainActivity : ComponentActivity() {
         flashButton.text = "⚡"
         flashButton.contentDescription = state
         if (::flashStatusLabel.isInitialized) flashStatusLabel.text = state
+        updateQuickTopControls()
+    }
+
+    private fun updateQuickTopControls() {
+        if (::ratioQuickButton.isInitialized) ratioQuickButton.text = if (videoMode) {
+            if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_4_3) "4:3" else "16:9"
+        } else when (cameraXController.uiState.photoAspectRatio) {
+            PhotoAspectRatio.RATIO_4_3 -> "4:3"; PhotoAspectRatio.RATIO_16_9 -> "16:9"; PhotoAspectRatio.FULL -> "FULL"
+        }
+        if (::modeQuickButton.isInitialized) modeQuickButton.text = if (videoMode) {
+            val q = when (videoQuality) { Quality.UHD -> "4K"; Quality.FHD -> "FHD"; Quality.HD -> "HD"; else -> "SD" }
+            "$q ${if (videoFps == 0) "AUTO" else videoFps}"
+        } else when (selectedPhotoExtension) {
+            ExtensionMode.NIGHT -> "NIGHT"; ExtensionMode.HDR -> "HDR"; ExtensionMode.BOKEH -> "BOKEH"; else -> if (ultraHdrCaptureEnabled) "U HDR" else "PHOTO"
+        }
     }
 
     private fun smallButton(label: String, action: (View) -> Unit) =
@@ -1753,6 +1781,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             videoFpsButton.text = if (videoFps == 0) "FRAME RATE: AUTO" else "FRAME RATE: $videoFps FPS"
+            updateQuickTopControls()
             val stabilizationModes = activeCharacteristics
                 ?.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
                 ?: intArrayOf(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
@@ -2008,6 +2037,7 @@ class MainActivity : ComponentActivity() {
         photoExtensionButton.contentDescription = effectDescription +
             if (ultraHdrCaptureEnabled && !videoMode) ". Ultra HDR photo output is active." else ""
         photoExtensionButton.isEnabled = extensionsInitialized && supportedPhotoExtensions.isNotEmpty() && !videoMode
+        updateQuickTopControls()
     }
 
     private fun refreshPhotoExtensions() {
