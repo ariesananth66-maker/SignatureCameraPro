@@ -1141,7 +1141,7 @@ class MainActivity : ComponentActivity() {
 
     private fun setSettingsExpanded(expanded: Boolean) {
         if (!::settingsDrawer.isInitialized) return
-        if (expanded && ::quickControlsPanel.isInitialized) quickControlsPanel.visibility = View.GONE
+        if (::quickControlsPanel.isInitialized) quickControlsPanel.visibility = View.GONE
         if (expanded && recording != null) {
             Toast.makeText(this, "Stop recording before opening camera settings", Toast.LENGTH_SHORT).show()
             return
