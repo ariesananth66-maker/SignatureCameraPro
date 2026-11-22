@@ -687,6 +687,15 @@ class MainActivity : ComponentActivity() {
         proPanel.addView(whiteBalanceButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(0, dp(4), 0, dp(4)) })
         sceneModeButton = smallButton("SCENE: AUTO") { cycleSceneMode() }
         proPanel.addView(sceneModeButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(0, dp(4), 0, dp(4)) })
+        val presetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        presetRow.addView(smallButton("SAVE PRESET") { saveProPreset() },
+            LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(0, dp(4), dp(4), dp(4)) })
+        presetRow.addView(smallButton("LOAD PRESET") { loadProPreset() },
+            LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(4), dp(4), 0, dp(4)) })
+        proPanel.addView(presetRow)
         proPanel.addView(smallButton("CAPTURE RAW / DNG") { view ->
             (view as Button).isEnabled = false
             view.text = "CAPTURING RAW…"
@@ -2061,6 +2070,60 @@ class MainActivity : ComponentActivity() {
         if (proModeEnabled) applyManualCapture()
     }
 
+    private fun saveProPreset() {
+        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
+            .putInt("pro_preset_iso", manualIso)
+            .putLong("pro_preset_shutter_ns", manualShutterNs)
+            .putInt("pro_preset_focus_progress", manualFocusProgress)
+            .putInt("pro_preset_awb_mode", savedAwbMode)
+            .putInt("pro_preset_exposure_index", exposureIndex)
+            .apply()
+        Toast.makeText(this, "Pro preset saved", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun loadProPreset() {
+        val prefs = getSharedPreferences("signature_camera_settings", MODE_PRIVATE)
+        if (!prefs.contains("pro_preset_iso")) {
+            Toast.makeText(this, "No saved Pro preset yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        manualIso = prefs.getInt("pro_preset_iso", manualIso).coerceIn(activeIsoMin, activeIsoMax)
+        manualShutterNs = prefs.getLong("pro_preset_shutter_ns", manualShutterNs)
+            .coerceIn(activeShutterMinNs, activeShutterMaxNs)
+        manualFocusProgress = prefs.getInt("pro_preset_focus_progress", manualFocusProgress).coerceIn(0, 1000)
+        val presetAwb = prefs.getInt("pro_preset_awb_mode", CaptureRequest.CONTROL_AWB_MODE_AUTO)
+        awbModeIndex = supportedAwbModes.indexOf(presetAwb).takeIf { it >= 0 } ?: 0
+        savedAwbMode = supportedAwbModes.getOrElse(awbModeIndex) { CaptureRequest.CONTROL_AWB_MODE_AUTO }
+        isoSlider.progress = (((manualIso - activeIsoMin).toFloat() /
+            (activeIsoMax - activeIsoMin).coerceAtLeast(1)) * isoSlider.max).toInt().coerceIn(0, isoSlider.max)
+        shutterSlider.progress = shutterProgressFromNs(manualShutterNs)
+        focusSlider.progress = manualFocusProgress
+        manualFocusDiopters = minimumFocusDistance * (manualFocusProgress / 1000f)
+        manualFocusEnabled = manualFocusProgress > 0 && minimumFocusDistance > 0f
+        focusValue.text = if (manualFocusEnabled) "FOCUS  %.2f D".format(Locale.US, manualFocusDiopters) else "FOCUS  AUTO"
+        whiteBalanceButton.text = "WHITE BALANCE: ${when (savedAwbMode) {
+            CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT -> "INCANDESCENT"
+            CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT -> "FLUORESCENT"
+            CaptureRequest.CONTROL_AWB_MODE_WARM_FLUORESCENT -> "WARM FLUORESCENT"
+            CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT -> "DAYLIGHT"
+            CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT -> "CLOUDY"
+            CaptureRequest.CONTROL_AWB_MODE_TWILIGHT -> "TWILIGHT"
+            CaptureRequest.CONTROL_AWB_MODE_SHADE -> "SHADE"
+            else -> "AUTO"
+        }}"
+        val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
+        if (evRange != null) {
+            exposureIndex = prefs.getInt("pro_preset_exposure_index", 0).coerceIn(evRange.lower, evRange.upper)
+            cameraXController.setExposureCompensation(exposureIndex)
+            val step = camera?.cameraInfo?.exposureState?.exposureCompensationStep
+            val ev = if (step != null && step.denominator != 0) exposureIndex * step.numerator.toFloat() / step.denominator.toFloat() else 0f
+            exposureLabel.text = "EV  ${if (ev > 0) "+" else ""}%.1f".format(Locale.US, ev)
+        }
+        if (proModeEnabled) applyManualCapture()
+        prefs.edit().putInt("manual_iso", manualIso).putLong("manual_shutter_ns", manualShutterNs)
+            .putInt("manual_focus_progress", manualFocusProgress).putInt("manual_awb_mode", savedAwbMode).apply()
+        Toast.makeText(this, "Pro preset loaded", Toast.LENGTH_SHORT).show()
+    }
     private fun cycleSceneMode() {
         if (selectedPhotoExtension != null) {
             Toast.makeText(this, "Turn off the photo effect before using hardware scene presets", Toast.LENGTH_SHORT).show()
