@@ -1509,6 +1509,49 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             setOnClickListener { action(it) }
         }
 
+    private fun addDigitalZoomFallback() {
+        val presets = if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
+            listOf(0.5f, 1f, 2f, 4f, 8f)
+        } else {
+            listOf(0.5f, 1f, 2f, 3f, 5f, 10f)
+        }
+        presets.forEach { ratio ->
+            val label = if (ratio % 1f == 0f) ratio.toInt().toString()
+                else "%.1f".format(Locale.US, ratio)
+            val button = Button(this).apply {
+                text = "${label}×"
+                textSize = 11f
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
+                isAllCaps = false
+                setTextColor(if (ratio == 1f) accentColor else android.graphics.Color.WHITE)
+                tag = ratio
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(22).toFloat()
+                    setColor(if (ratio == 1f) 0xFF303034.toInt() else 0xFF1C1C1E.toInt())
+                    setStroke(dp(1), if (ratio == 1f) accentBorderColor else 0xFF343438.toInt())
+                }
+                minWidth = 0
+                minHeight = dp(48)
+                setPadding(dp(10), 0, dp(10), 0)
+                contentDescription = "Set camera zoom to ${label}x"
+                setOnClickListener {
+                    val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
+                    if (ratio < state.minZoomRatio || ratio > state.maxZoomRatio) {
+                        Toast.makeText(this@BaseSignatureCameraActivity, "Zoom ${label}x is not supported by this camera", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    cameraXController.setZoomRatio(ratio)
+                    zoomLabel.text = "ZOOM  ${label}x"
+                    updateLensSelection(ratio)
+                    it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
+                }
+            }
+            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                setMargins(dp(3), 0, dp(3), 0)
+            })
+        }
+    }
+
     private fun discoverRearLenses() {
         lensRow.removeAllViews()
         val manager = getSystemService(CAMERA_SERVICE) as CameraManager
@@ -1520,10 +1563,19 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             val caps = chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
             caps.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) &&
                 chars.physicalCameraIds.isNotEmpty()
-        } ?: rearIds.firstOrNull() ?: return
+        } ?: rearIds.firstOrNull() ?: run {
+            addDigitalZoomFallback()
+            return
+        }
         val logical = manager.getCameraCharacteristics(rearId)
-        val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: return
-        val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return
+        val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: run {
+            addDigitalZoomFallback()
+            return
+        }
+        val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: run {
+            addDigitalZoomFallback()
+            return
+        }
         val baseEquivalent = logicalFocal / logicalSize.width
         // Derive 35mm-equivalent focal length from each exposed physical
         // camera's focal length and sensor width; never hardcode 16/24/72mm.
@@ -1547,7 +1599,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         val sorted = options.distinctBy { it.first }.sortedBy { it.second }
         if (sorted.size <= 1) {
-            lensRow.addView(TextView(this).apply { text = "REAR LENS DETAILS NOT EXPOSED"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
+            addDigitalZoomFallback()
             return
         }
         sorted.forEach { (label, ratio, focalLengthMm) ->
