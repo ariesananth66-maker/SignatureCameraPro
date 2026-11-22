@@ -1,5 +1,6 @@
 package com.ananthrajan.cameraengine
 
+import android.os.Bundle
 import com.ananthrajan.signaturecamerapro.LegacyCameraActivity
 
 /**
@@ -9,6 +10,22 @@ import com.ananthrajan.signaturecamerapro.LegacyCameraActivity
  */
 abstract class BaseSignatureCameraActivity : LegacyCameraActivity() {
     abstract val themeStyle: CameraThemeStyle
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Apply the selected camera-family system chrome after the legacy camera
+        // screen has created its view hierarchy.
+        when (themeStyle) {
+            CameraThemeStyle.IPHONE_PRO -> {
+                window.statusBarColor = android.graphics.Color.BLACK
+                window.navigationBarColor = android.graphics.Color.BLACK
+            }
+            CameraThemeStyle.SAMSUNG_ONE_UI -> {
+                window.statusBarColor = android.graphics.Color.BLACK
+                window.navigationBarColor = android.graphics.Color.BLACK
+            }
+        }
+    }
 }
 
 enum class CameraThemeStyle {
