@@ -804,7 +804,7 @@ open class LegacyCameraActivity : ComponentActivity() {
             setOnClickListener { view ->
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (recording != null) {
-                    Toast.makeText(this@MainActivity, "Stop recording before switching cameras", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LegacyCameraActivity, "Stop recording before switching cameras", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 cameraXController.setTorch(false)
@@ -863,7 +863,7 @@ open class LegacyCameraActivity : ComponentActivity() {
                         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putBoolean("screen_flash_enabled", screenFlashEnabled).apply()
                         updateScreenFlashPreview()
                         syncFlashButtonLabel()
-                    } else Toast.makeText(this@MainActivity, "Front screen light is not available during video recording", Toast.LENGTH_SHORT).show()
+                    } else Toast.makeText(this@LegacyCameraActivity, "Front screen light is not available during video recording", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (videoMode) {
@@ -2929,7 +2929,7 @@ open class LegacyCameraActivity : ComponentActivity() {
                     override fun getItemId(position: Int) = position.toLong()
                     override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                         val item = getItem(position)
-                        val cell = (convertView as? LinearLayout) ?: LinearLayout(this@MainActivity).apply {
+                        val cell = (convertView as? LinearLayout) ?: LinearLayout(this@LegacyCameraActivity).apply {
                             orientation = LinearLayout.VERTICAL
                             gravity = Gravity.CENTER
                             setPadding(4, 4, 4, 8)
@@ -2937,12 +2937,12 @@ open class LegacyCameraActivity : ComponentActivity() {
                                 cornerRadius = 12f
                                 setColor(0xFF202B3B.toInt())
                             }
-                            addView(ImageView(this@MainActivity).apply {
+                            addView(ImageView(this@LegacyCameraActivity).apply {
                                 layoutParams = LinearLayout.LayoutParams(-1, 112)
                                 scaleType = ImageView.ScaleType.CENTER_CROP
                                 setImageResource(android.R.drawable.ic_menu_gallery)
                             })
-                            addView(TextView(this@MainActivity).apply {
+                            addView(TextView(this@LegacyCameraActivity).apply {
                                 textSize = 10f
                                 maxLines = 2
                                 gravity = Gravity.CENTER
@@ -2972,7 +2972,7 @@ open class LegacyCameraActivity : ComponentActivity() {
                         startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, item.mime)
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
                     } catch (_: Exception) {
-                        Toast.makeText(this@MainActivity, "No app available to open this file", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LegacyCameraActivity, "No app available to open this file", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -3080,12 +3080,12 @@ open class LegacyCameraActivity : ComponentActivity() {
                         if (useScreenFlash) hideScreenFlash()
                         if (::captureButton.isInitialized) captureButton.isEnabled = true
                         if (saved) refreshGalleryThumbnail()
-                        Toast.makeText(this@MainActivity, if (saved) "FULL photo saved to Gallery" else "FULL photo save failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LegacyCameraActivity, if (saved) "FULL photo saved to Gallery" else "FULL photo save failed", Toast.LENGTH_SHORT).show()
                     }
                     override fun onError(exception: ImageCaptureException) {
                         if (useScreenFlash) hideScreenFlash()
                         if (::captureButton.isInitialized) captureButton.isEnabled = true
-                        Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@LegacyCameraActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 })
             } else {
@@ -3094,12 +3094,12 @@ open class LegacyCameraActivity : ComponentActivity() {
                         if (useScreenFlash) hideScreenFlash()
                         if (::captureButton.isInitialized) captureButton.isEnabled = true
                         refreshGalleryThumbnail()
-                        Toast.makeText(this@MainActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LegacyCameraActivity, "Photo saved to Gallery", Toast.LENGTH_SHORT).show()
                     }
                     override fun onError(exception: ImageCaptureException) {
                         if (useScreenFlash) hideScreenFlash()
                         if (::captureButton.isInitialized) captureButton.isEnabled = true
-                        Toast.makeText(this@MainActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@LegacyCameraActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 })
             }
