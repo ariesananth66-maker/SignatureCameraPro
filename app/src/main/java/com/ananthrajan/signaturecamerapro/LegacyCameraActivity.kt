@@ -1456,48 +1456,15 @@ open class LegacyCameraActivity : ComponentActivity() {
                 chars.physicalCameraIds.isNotEmpty()
         } ?: rearIds.firstOrNull() ?: return
         val logical = manager.getCameraCharacteristics(rearId)
-        val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: return
-        val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return
-        val baseEquivalent = logicalFocal / logicalSize.width
-        // Derive 35mm-equivalent focal length from each exposed physical
-        // camera's focal length and sensor width; never hardcode 16/24/72mm.
-        val options = mutableListOf<Triple<String, Float, Int>>()
-        val baseEquivalentMm = (baseEquivalent * 36f).toInt().coerceAtLeast(1)
-        options.add(Triple("1.0x", 1f, baseEquivalentMm))
-        logical.physicalCameraIds.forEach { physicalId ->
-            try {
-                val physical = manager.getCameraCharacteristics(physicalId)
-                val focal = physical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
-                val size = physical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-                if (focal != null && size != null && size.width > 0f) {
-                    val ratio = (focal / size.width) / baseEquivalent
-                    val equivalentMm = ((focal / size.width) * 36f).toInt().coerceAtLeast(1)
-                    if (ratio.isFinite() && ratio in 0.25f..10f &&
-                        options.none { kotlin.math.abs(it.second - ratio) < 0.12f }) {
-                        options.add(Triple("%.1fx".format(Locale.US, ratio), ratio, equivalentMm))
-                    }
-                }
-            } catch (_: Exception) { }
-        }
-        // Keep the native-style selector deliberately simple: the main 24mm-equivalent
-        // view and the dedicated telephoto view only. Do not surface every digital crop
-        // or intermediate physical camera as another confusing focal-length button.
-        val primary = options.minByOrNull { kotlin.math.abs(it.second - 1f) }
-        val telephoto = options.filter { it.second >= 1.8f }
-            .minByOrNull { kotlin.math.abs(it.second - 2f) }
-        val sorted = listOfNotNull(primary, telephoto).distinctBy { it.first }
-        if (sorted.size <= 1) {
-            lensRow.addView(TextView(this).apply {
-                text = "TELEPHOTO LENS NOT EXPOSED"
-                textSize = 10f
-                setTextColor(0xFFCCCCCC.toInt())
-                gravity = Gravity.CENTER
-            })
-            return
-        }
-        sorted.forEach { (label, ratio, focalLengthMm) ->
+        // Offer only honest, fixed zoom presets. These are zoom ratios on the
+        // active logical camera, not claims about physical focal lengths or optics.
+        val sorted = listOf(
+            Triple("1x", 1f, 0),
+            Triple("2x", 2f, 0)
+        )
+        sorted.forEach { (label, ratio, _) ->
             val button = Button(this)
-            button.text = "${label.replace("x", "×")}\n${focalLengthMm}mm"
+            button.text = label
             button.textSize = 11f
             button.setLineSpacing(0f, 0.9f)
             button.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
@@ -1535,7 +1502,7 @@ open class LegacyCameraActivity : ComponentActivity() {
                     return@setOnClickListener
                 }
                 cameraXController.setZoomRatio(ratio)
-                zoomLabel.text = "LENS VIEW  $label"
+                zoomLabel.text = "ZOOM  $label"
                 updateLensSelection(ratio)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             }
