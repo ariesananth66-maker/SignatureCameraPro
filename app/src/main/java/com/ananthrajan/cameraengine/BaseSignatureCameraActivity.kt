@@ -428,7 +428,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        zoomRulerView = ZoomRulerView(this) { progress ->
+        zoomRulerView = ZoomRulerView(this, accentColor) { progress ->
             zoomSlider.progress = progress
             zoomSlider.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
         }
@@ -3288,6 +3288,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
 
     private class ZoomRulerView(
         context: android.content.Context,
+        private val accentColor: Int,
         private val onProgressChanged: (Int) -> Unit
     ) : View(context) {
         private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -3355,7 +3356,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
     }
 
-    private class FocusOverlay(context: android.content.Context, accentColor: Int) : View(context) {
+    private class FocusOverlay(context: android.content.Context, private val accentColor: Int) : View(context) {
         private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
             strokeWidth = 3f
