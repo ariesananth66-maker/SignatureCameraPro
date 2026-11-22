@@ -1010,7 +1010,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 lensRow.layoutParams = params
             }
         }
-        val advancedToggleButton = smallButton("☷") {
+        val advancedToggleButton = smallButton(
+            if (themeStyle == CameraThemeStyle.IPHONE_PRO) "⠿" else "☷"
+        ) {
             setQuickControlsExpanded(quickControlsPanel.visibility != View.VISIBLE)
             positionLensRailAboveDock()
         }
@@ -1019,7 +1021,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         advancedToggleButton.minWidth = 0
         advancedToggleButton.minHeight = dp(40)
         advancedToggleButton.setPadding(0, 0, 0, 0)
-        advancedToggleButton.contentDescription = "Open camera settings"
+        advancedToggleButton.contentDescription = "Open camera controls"
         advancedToggleButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         advancedToggleButton.elevation = 0f
         advancedToggleButton.setTextColor(android.graphics.Color.WHITE)
@@ -1053,7 +1055,33 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         modeQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         modeQuickButton.elevation = 0f
         topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
-        topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(42)).apply { leftMargin = dp(3) })
+        if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
+            // iOS 27 places the six-dot controls entry at the lower-right of the shutter dock.
+            val flipControl = mainRow.getChildAt(2)
+            if (flipControl != null) {
+                mainRow.removeView(flipControl)
+                val rightDock = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                }
+                rightDock.addView(flipControl, LinearLayout.LayoutParams(0, dp(84), 1f).apply {
+                    setMargins(dp(4), 0, dp(4), 0)
+                })
+                rightDock.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                    marginStart = dp(3)
+                })
+                mainRow.addView(rightDock, LinearLayout.LayoutParams(0, dp(84), 1f).apply {
+                    setMargins(dp(4), 0, dp(4), 0)
+                })
+            } else {
+                topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(42)))
+            }
+        } else {
+            // Samsung keeps the quick-controls entry in the top control rail.
+            topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(42)).apply {
+                leftMargin = dp(3)
+            })
+        }
 
         // Compact two-row quick panel: one tap to the most-used camera controls.
         val quickGrid = android.widget.GridLayout(this).apply {
