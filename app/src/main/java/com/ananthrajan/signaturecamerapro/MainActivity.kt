@@ -1484,7 +1484,7 @@ class MainActivity : ComponentActivity() {
         // or intermediate physical camera as another confusing focal-length button.
         val primary = options.minByOrNull { kotlin.math.abs(it.second - 1f) }
         val telephoto = options.filter { it.second >= 1.8f }
-            .minByOrNull { kotlin.math.abs(it.second - 3f) }
+            .minByOrNull { kotlin.math.abs(it.second - 2f) }
         val sorted = listOfNotNull(primary, telephoto).distinctBy { it.first }
         if (sorted.size <= 1) {
             lensRow.addView(TextView(this).apply {
