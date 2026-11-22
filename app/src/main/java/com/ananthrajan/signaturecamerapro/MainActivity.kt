@@ -598,7 +598,7 @@ class MainActivity : ComponentActivity() {
         proPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            background = GradientDrawable().apply { cornerRadius = 16f; setColor(0xFF161618.toInt()) }
+            background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(0xF0161618.toInt()); setStroke(dp(1), 0x44FFD60A) }
             visibility = View.GONE
         }
         isoValue = TextView(this).apply { text = "ISO 400"; textSize = 12f; setTextColor(-1) }
@@ -633,7 +633,25 @@ class MainActivity : ComponentActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        proPanel.addView(isoValue)
+        val styleProMetric: (TextView) -> Unit = { metric ->
+            metric.setTextColor(0xFFFFD60A.toInt())
+            metric.textSize = 11f
+            metric.letterSpacing = 0.045f
+            metric.setPadding(dp(10), dp(6), dp(10), dp(6))
+            metric.background = GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(0xFF242426.toInt())
+                setStroke(dp(1), 0x44FFD60A)
+            }
+        }
+        styleProMetric(isoValue)
+        styleProMetric(shutterValue)
+        val proAccent = ColorStateList.valueOf(0xFFFFD60A.toInt())
+        listOf(isoSlider, shutterSlider).forEach { slider ->
+            slider.progressTintList = proAccent
+            slider.thumbTintList = proAccent
+        }
+        proPanel.addView(isoValue, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(3), 0, 0) })
         proPanel.addView(isoSlider, LinearLayout.LayoutParams(-1, dp(40)))
         proPanel.addView(shutterValue)
         proPanel.addView(shutterSlider, LinearLayout.LayoutParams(-1, dp(40)))
@@ -658,7 +676,10 @@ class MainActivity : ComponentActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        proPanel.addView(focusValue)
+        styleProMetric(focusValue)
+        focusSlider.progressTintList = proAccent
+        focusSlider.thumbTintList = proAccent
+        proPanel.addView(focusValue, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(3), 0, 0) })
         proPanel.addView(focusSlider, LinearLayout.LayoutParams(-1, dp(40)))
         whiteBalanceButton = smallButton("WHITE BALANCE: AUTO") {
             cycleWhiteBalance()
