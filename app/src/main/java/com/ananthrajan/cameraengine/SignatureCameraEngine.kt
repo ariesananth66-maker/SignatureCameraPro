@@ -1036,7 +1036,15 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         title.letterSpacing = 0.16f
         flashButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         flashButton.elevation = 0f
-        topHeader.addView(flashButton, LinearLayout.LayoutParams(dp(42), dp(42)))
+        val flashControl = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(flashButton, LinearLayout.LayoutParams(dp(38), dp(42)))
+            addView(flashStatusLabel, LinearLayout.LayoutParams(-2, dp(24)).apply {
+                marginStart = dp(1)
+            })
+        }
+        topHeader.addView(flashControl, LinearLayout.LayoutParams(-2, dp(42)))
         ratioQuickButton = smallButton("4:3") {
             if (videoMode) selectVideoAspectRatio(if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_16_9) VideoAspectRatio.RATIO_4_3 else VideoAspectRatio.RATIO_16_9)
             else selectPhotoAspectRatio(when (cameraXController.uiState.photoAspectRatio) {
@@ -1085,7 +1093,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         val quickGrid = android.widget.GridLayout(this).apply {
             rowCount = 2
             columnCount = 4
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(dp(8), dp(4), dp(8), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = dp(22).toFloat()
                 setColor(0xE61C1C1E.toInt())
@@ -1131,7 +1139,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
             ).apply {
                 width = 0
-                height = dp(76)
+                height = dp(68)
                 setMargins(dp(2), dp(1), dp(2), dp(1))
             })
         }
@@ -1150,7 +1158,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         quickControlsPanel = quickGrid
         // iOS controls open above the shutter; Samsung quick settings drop from the top.
         val quickGridParams = if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
-            FrameLayout.LayoutParams(-1, dp(164), Gravity.BOTTOM).apply {
+            FrameLayout.LayoutParams(-1, dp(144), Gravity.BOTTOM).apply {
                 leftMargin = dp(12)
                 rightMargin = dp(12)
                 bottomMargin = dp(176)
@@ -1252,7 +1260,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         if (expanded) setSettingsExpanded(false)
         quickControlsPanel.visibility = if (expanded) View.VISIBLE else View.GONE
+        if (::lensRow.isInitialized) lensRow.visibility = if (expanded) View.GONE else View.VISIBLE
         updateLensRailVisibility()
+        quickControlsPanel.post { updateLensRailVisibility() }
         if (::settingsToggleButton.isInitialized) {
             settingsToggleButton.contentDescription = if (expanded) "Close quick controls" else "Open quick controls"
         }
@@ -1505,7 +1515,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         flashButton.text = "⚡"
         flashButton.contentDescription = state
-        if (::flashStatusLabel.isInitialized) flashStatusLabel.text = state
+        if (::flashStatusLabel.isInitialized) {
+            flashStatusLabel.text = state.substringAfterLast(" ")
+            flashStatusLabel.textSize = 9f
+            flashStatusLabel.setTextColor(0xFFE6E6EB.toInt())
+            flashStatusLabel.gravity = Gravity.CENTER_VERTICAL
+            flashStatusLabel.contentDescription = state
+        }
         updateQuickTopControls()
         updateTimerUi()
     }
