@@ -1604,6 +1604,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         var nearestDistance = Float.MAX_VALUE
         for (i in 0 until lensRow.childCount) {
             val button = lensRow.getChildAt(i) as? Button ?: continue
+            if (button.visibility != View.VISIBLE) continue
             val preset = button.tag as? Float ?: continue
             val distance = kotlin.math.abs(kotlin.math.ln(zoomRatio.coerceAtLeast(0.01f) / preset))
             if (distance < nearestDistance) {
@@ -1613,6 +1614,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         for (i in 0 until lensRow.childCount) {
             val button = lensRow.getChildAt(i) as? Button ?: continue
+            if (button.visibility != View.VISIBLE) continue
             val selected = button === nearest && nearestDistance < 0.22f
             button.background = GradientDrawable().apply {
                 cornerRadius = dp(22).toFloat()
