@@ -773,17 +773,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         videoStabilizationButton = smallButton("STABILIZATION OFF") { toggleVideoStabilization() }
         videoRow.addView(photoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         videoRow.addView(videoModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
-        if (themeStyle == CameraThemeStyle.SAMSUNG_ONE_UI) {
-            val moreModeButton = smallButton("MORE") {
-                setQuickControlsExpanded(quickControlsPanel.visibility != View.VISIBLE)
-            }.apply {
-                background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
-                setTextColor(android.graphics.Color.WHITE)
-            }
-            videoRow.addView(moreModeButton, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
-                setMargins(dp(4), 0, dp(4), 0)
-            })
-        }
         updateModeButtonAppearance()
         advancedPanel.addView(videoQualityButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), dp(4), dp(3), dp(3)) })
         advancedPanel.addView(videoFpsButton, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(3), 0, dp(3), dp(3)) })
@@ -1010,9 +999,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 lensRow.layoutParams = params
             }
         }
-        val advancedToggleButton = smallButton(
-            if (themeStyle == CameraThemeStyle.IPHONE_PRO) "⠿" else "☷"
-        ) {
+        val advancedToggleButton = smallButton("⋮") {
             setQuickControlsExpanded(quickControlsPanel.visibility != View.VISIBLE)
             positionLensRailAboveDock()
         }
@@ -1199,17 +1186,21 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         // Recalculate after the dock has been measured so the floating lens rail
         // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
-        if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
-            panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                val quickParams = quickGrid.layoutParams as? FrameLayout.LayoutParams
-                if (quickParams != null) {
-                    val desiredMargin = panel.height + dp(8)
-                    if (quickParams.bottomMargin != desiredMargin) {
-                        quickParams.bottomMargin = desiredMargin
-                        quickGrid.layoutParams = quickParams
-                    }
-                }
+        panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val quickParams = quickGrid.layoutParams as? FrameLayout.LayoutParams ?: return@addOnLayoutChangeListener
+            val insets = root.rootWindowInsets
+            val safeTop = insets?.systemWindowInsetTop ?: 0
+            val safeBottom = insets?.systemWindowInsetBottom ?: 0
+            if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
+                quickParams.bottomMargin = panel.height + safeBottom + dp(8)
+                val available = (root.height - panel.height - safeTop - safeBottom - dp(20)).coerceAtLeast(dp(96))
+                quickParams.height = minOf(dp(164), available)
+            } else {
+                quickParams.topMargin = safeTop + top.height + dp(8)
+                val available = (root.height - quickParams.topMargin - panel.height - safeBottom - dp(20)).coerceAtLeast(dp(96))
+                quickParams.height = minOf(dp(164), available)
             }
+            quickGrid.layoutParams = quickParams
         }
         if (!landscapeLayout) {
             positionLensRailAboveDock()
@@ -1279,8 +1270,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         settingsDrawer.visibility = if (expanded) View.VISIBLE else View.GONE
         updateLensRailVisibility()
         if (::settingsToggleButton.isInitialized) {
-            settingsToggleButton.text = if (expanded) "⌄" else "⌃"
-            settingsToggleButton.contentDescription = if (expanded) "Hide camera settings" else "Open camera settings"
+            settingsToggleButton.text = "⋮"
+            settingsToggleButton.contentDescription = if (expanded) "Camera menu; settings open" else "Open camera menu"
         }
         if (::mainControlsRow.isInitialized) mainControlsRow.visibility = View.VISIBLE
         if (::dockHint.isInitialized) dockHint.visibility = if (expanded) View.GONE else View.VISIBLE
@@ -1538,16 +1529,15 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
 
     private fun addDigitalZoomFallback() {
-        val presets = if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
-            listOf(0.5f, 1f, 2f, 4f, 8f)
-        } else {
-            listOf(0.5f, 1f, 2f, 3f, 5f, 10f)
-        }
+        lensRow.removeAllViews()
+        val zoomState = camera?.cameraInfo?.zoomState?.value
+        val presets = listOf(0.5f, 1.0f, 2.0f, 3.0f).filter { ratio ->
+            zoomState == null || (ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio)
+        }.ifEmpty { listOf(1.0f) }
         presets.forEach { ratio ->
-            val label = if (ratio % 1f == 0f) ratio.toInt().toString()
-                else "%.1f".format(Locale.US, ratio)
+            val label = "%.1fx".format(Locale.US, ratio)
             val button = Button(this).apply {
-                text = "${label}×"
+                text = label
                 textSize = 11f
                 typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
                 isAllCaps = false
@@ -1561,19 +1551,21 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 minWidth = 0
                 minHeight = dp(48)
                 setPadding(dp(10), 0, dp(10), 0)
-                contentDescription = "Set camera zoom to ${label}x"
+                contentDescription = "Set camera zoom to $label"
                 setOnClickListener {
                     val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
                     if (ratio < state.minZoomRatio || ratio > state.maxZoomRatio) {
-                        Toast.makeText(this@BaseSignatureCameraActivity, "Zoom ${label}x is not supported by this camera", Toast.LENGTH_SHORT).show()
+                        updateLensButtonAvailability(state.minZoomRatio, state.maxZoomRatio)
                         return@setOnClickListener
                     }
                     cameraXController.setZoomRatio(ratio)
-                    zoomLabel.text = "ZOOM  ${label}x"
+                    zoomLabel.text = "ZOOM  $label"
                     updateLensSelection(ratio)
                     it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
                 }
             }
+            button.isEnabled = zoomState == null || (ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio)
+            button.visibility = if (button.isEnabled) View.VISIBLE else View.GONE
             lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(3), 0, dp(3), 0)
             })
@@ -1581,101 +1573,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun discoverRearLenses() {
-        lensRow.removeAllViews()
-        val manager = getSystemService(CAMERA_SERVICE) as CameraManager
-        val rearIds = manager.cameraIdList.filter { id ->
-            manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
-        }
-        val rearId = rearIds.firstOrNull { id ->
-            val chars = manager.getCameraCharacteristics(id)
-            val caps = chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
-            caps.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) &&
-                chars.physicalCameraIds.isNotEmpty()
-        } ?: rearIds.firstOrNull() ?: run {
-            addDigitalZoomFallback()
-            return
-        }
-        val logical = manager.getCameraCharacteristics(rearId)
-        val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: run {
-            addDigitalZoomFallback()
-            return
-        }
-        val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: run {
-            addDigitalZoomFallback()
-            return
-        }
-        val baseEquivalent = logicalFocal / logicalSize.width
-        // Derive 35mm-equivalent focal length from each exposed physical
-        // camera's focal length and sensor width; never hardcode 16/24/72mm.
-        val options = mutableListOf<Triple<String, Float, Int>>()
-        val baseEquivalentMm = (baseEquivalent * 36f).toInt().coerceAtLeast(1)
-        options.add(Triple("1.0x", 1f, baseEquivalentMm))
-        logical.physicalCameraIds.forEach { physicalId ->
-            try {
-                val physical = manager.getCameraCharacteristics(physicalId)
-                val focal = physical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
-                val size = physical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-                if (focal != null && size != null && size.width > 0f) {
-                    val ratio = (focal / size.width) / baseEquivalent
-                    val equivalentMm = ((focal / size.width) * 36f).toInt().coerceAtLeast(1)
-                    if (ratio.isFinite() && ratio in 0.25f..10f &&
-                        options.none { kotlin.math.abs(it.second - ratio) < 0.12f }) {
-                        options.add(Triple("%.1fx".format(Locale.US, ratio), ratio, equivalentMm))
-                    }
-                }
-            } catch (_: Exception) { }
-        }
-        val sorted = options.distinctBy { it.first }.sortedBy { it.second }
-        if (sorted.size <= 1) {
-            addDigitalZoomFallback()
-            return
-        }
-        sorted.forEach { (label, ratio, focalLengthMm) ->
-            val button = Button(this)
-            button.text = "${label.replace("x", "×")}\n${focalLengthMm}mm"
-            button.textSize = 11f
-            button.setLineSpacing(0f, 0.9f)
-            button.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
-            button.isAllCaps = false
-            button.setTextColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) accentColor else android.graphics.Color.WHITE)
-            button.tag = ratio
-            button.background = GradientDrawable().apply {
-                cornerRadius = dp(22).toFloat()
-                setColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFF303034.toInt() else 0xFF1C1C1E.toInt())
-                setStroke(dp(1), if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFE5E5EA.toInt() else 0xFF343438.toInt())
-            }
-            button.minWidth = 0
-            button.minHeight = dp(48)
-            button.setPadding(dp(10), 0, dp(10), 0)
-            button.elevation = 3f
-            // Never label a clamped digital zoom as a different physical lens preset.
-            // Keep presets disabled when the active CameraX logical camera cannot reach them.
-            val zoomState = camera?.cameraInfo?.zoomState?.value
-            val inSupportedRange = zoomState != null &&
-                ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio
-            // Keep lens presets available in OEM Night/HDR modes when the active
-            // logical camera reports that zoom ratio as supported.
-            button.isEnabled = inSupportedRange
-            button.alpha = if (button.isEnabled) 1f else 0.42f
-            button.contentDescription = if (!inSupportedRange) {
-                "$label lens preset is outside the supported zoom range"
-            } else {
-                "Switch logical rear camera to the $label lens view"
-            }
-            button.setOnClickListener {
-                if (cameraSelector != CameraSelector.DEFAULT_BACK_CAMERA) return@setOnClickListener
-                val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
-                if (ratio < state.minZoomRatio || ratio > state.maxZoomRatio) {
-                    Toast.makeText(this, "$label is outside the supported zoom range", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                cameraXController.setZoomRatio(ratio)
-                zoomLabel.text = "LENS VIEW  $label"
-                updateLensSelection(ratio)
-                button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
-            }
-            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(52), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
-        }
+        // CameraX's logical-camera zoom API switches between exposed physical
+        // lenses automatically. Keep a consistent multiplier-only rail and
+        // show only the stops supported by the active camera.
+        addDigitalZoomFallback()
     }
 
     private fun updateLensButtonAvailability(minZoom: Float, maxZoom: Float) {
@@ -1686,12 +1587,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             val available = cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA &&
                 ratio >= minZoom && ratio <= maxZoom
             button.isEnabled = available
-            button.alpha = if (available) 1f else 0.42f
+            button.visibility = if (available) View.VISIBLE else View.GONE
+            button.alpha = 1f
             val label = button.text.toString().replace("×", "x")
             button.contentDescription = if (available) {
-                "Switch rear camera to $label lens view"
+                "Switch rear camera to $label view"
             } else {
-                "$label lens preset is outside the active camera zoom range"
+                "$label is not available on the active camera"
             }
         }
     }
@@ -2355,7 +2257,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             return
         }
         if (supportedPhotoExtensions.isEmpty()) {
-            Toast.makeText(this, "No OEM Bokeh, Night or HDR extension is exposed for this camera", Toast.LENGTH_LONG).show()
+            // Unsupported OEM effects are disabled in the UI; do not show a
+            // misleading Portrait/Bokeh error toast for a capability the HAL lacks.
+            updatePhotoExtensionLabel()
             return
         }
         val currentIndex = selectedPhotoExtension?.let { supportedPhotoExtensions.indexOf(it) + 1 } ?: 0
@@ -2569,7 +2473,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             // PreviewView can be measured before its transformation info (and
             // therefore its ViewPort) is ready. Retry briefly rather than
             // silently binding preview and still capture with unrelated crops.
-            if (previewView.viewPort == null && viewportRetryCount < 10) {
+            if (previewView.viewPort == null && viewportRetryCount < 30) {
                 viewportRetryCount++
                 previewView.postDelayed({
                     if (generation == cameraStartGeneration && !isFinishing && !isDestroyed) startCamera()
