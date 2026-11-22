@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 43
-        versionName = "1.3.12" // polished Pro HUD metrics
+        versionCode = 44
+        versionName = "1.3.13" // saved Pro camera presets
     }
 
     if (releaseSigningReady) {
