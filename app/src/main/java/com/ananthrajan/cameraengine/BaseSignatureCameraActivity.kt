@@ -89,9 +89,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     abstract val isProModeEnabled: Boolean
 
     private val accentColor: Int
-        get() = if (themeStyle == CameraThemeStyle.IPHONE_PRO) accentColor else 0xFF4C8DFF.toInt()
+        get() = if (themeStyle == CameraThemeStyle.IPHONE_PRO) 0xFFFFD60A.toInt() else 0xFF4C8DFF.toInt()
     private val accentBorderColor: Int
-        get() = if (themeStyle == CameraThemeStyle.IPHONE_PRO) accentBorderColor else 0x664C8DFF.toInt()
+        get() = if (themeStyle == CameraThemeStyle.IPHONE_PRO) 0x44FFD60A else 0x664C8DFF.toInt()
     private val cameraXController = CameraXController()
     private lateinit var previewView: PreviewView
     private lateinit var gridView: GridOverlay
