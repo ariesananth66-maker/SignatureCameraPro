@@ -460,7 +460,7 @@ class MainActivity : ComponentActivity() {
             overScrollMode = View.OVER_SCROLL_NEVER
             addView(utilityRow, android.view.ViewGroup.LayoutParams(-2, -2))
         }
-        utilityRow.layoutParams = LinearLayout.LayoutParams(-2, -2)
+        utilityRow.layoutParams = FrameLayout.LayoutParams(-2, -2)
         for (i in 0 until utilityRow.childCount) {
             utilityRow.getChildAt(i).layoutParams = LinearLayout.LayoutParams(dp(112), dp(46)).apply {
                 setMargins(dp(3), 0, dp(3), 0)
@@ -769,9 +769,12 @@ class MainActivity : ComponentActivity() {
         val advancedSettingsHeight = if (landscapeLayout) dp(104) else dp(260)
         panel.addView(advancedScroll, LinearLayout.LayoutParams(-1, advancedSettingsHeight))
         fun positionLensRailAboveDock() {
-            // Keep the lens selector completely clear of the dock in both collapsed
-            // and expanded states; a fixed margin caused it to sit behind settings.
+            // In portrait the rail is a direct child of the root FrameLayout.
+            // In landscape it is moved into the dock LinearLayout and is positioned
+            // by the dock's child order instead; never apply FrameLayout params there.
+            if (lensRow.parent !== root) return
             panel.post {
+                if (lensRow.parent !== root) return@post
                 val params = lensRow.layoutParams as? FrameLayout.LayoutParams ?: return@post
                 params.bottomMargin = panel.height + dp(8)
                 lensRow.layoutParams = params
