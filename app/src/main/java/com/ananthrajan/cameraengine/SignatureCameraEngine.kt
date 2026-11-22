@@ -1233,14 +1233,14 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         // FULL is currently a still-photo mode; video supports 16:9 and 4:3 only.
         val fullPhoto = !videoMode &&
             cameraXController.uiState.photoAspectRatio == PhotoAspectRatio.FULL
-        val chromeColor = if (fullPhoto) 0x77000000.toInt() else android.graphics.Color.BLACK
+        val chromeColor = if (fullPhoto) 0xEE000000.toInt() else android.graphics.Color.BLACK
         topChrome.setBackgroundColor(chromeColor)
         cameraDockPanel.background = GradientDrawable().apply {
             cornerRadii = floatArrayOf(
                 dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(),
                 0f, 0f, 0f, 0f
             )
-            setColor(if (fullPhoto) 0x88000000.toInt() else android.graphics.Color.BLACK)
+            setColor(if (fullPhoto) 0xF0000000.toInt() else android.graphics.Color.BLACK)
         }
     }
 
