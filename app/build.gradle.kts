@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 42
-        versionName = "1.3.11" // focal length labels and compact quick controls
+        versionCode = 43
+        versionName = "1.3.12" // polished Pro HUD metrics
     }
 
     if (releaseSigningReady) {
