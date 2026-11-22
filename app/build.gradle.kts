@@ -20,8 +20,8 @@ android {
         applicationId = "com.ananthrajan.signaturecamerapro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 40
-        versionName = "1.3.9" // tactile zoom ruler and yellow zoom readout
+        versionCode = 41
+        versionName = "1.3.10" // hardware-derived focal length lens labels
     }
 
     if (releaseSigningReady) {
