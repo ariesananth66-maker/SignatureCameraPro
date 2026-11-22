@@ -1081,7 +1081,9 @@ class MainActivity : ComponentActivity() {
         }
         addQuickTile("⚡", "FLASH") { flashButton.performClick() }
         addQuickTile("◷", "TIMER") { timerButton.performClick() }
-        addQuickTile("▣", "RATIO") { ratioQuickButton.performClick() }
+        // Ratio remains one-tap in the top bar; use this tile for portrait instead
+        // of duplicating the same ratio action in two places.
+        addQuickTile("◉", "PORTRAIT") { togglePortraitBokeh() }
         addQuickTile("▦", "GRID") { gridButton.performClick() }
         addQuickTile("HDR", "PHOTO FX") { photoExtensionButton.performClick() }
         addQuickTile("◇", "STABILIZE") { videoStabilizationButton.performClick() }
@@ -1477,9 +1479,20 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (_: Exception) { }
         }
-        val sorted = options.distinctBy { it.first }.sortedBy { it.second }
+        // Keep the native-style selector deliberately simple: the main 24mm-equivalent
+        // view and the dedicated telephoto view only. Do not surface every digital crop
+        // or intermediate physical camera as another confusing focal-length button.
+        val primary = options.minByOrNull { kotlin.math.abs(it.second - 1f) }
+        val telephoto = options.filter { it.second >= 1.8f }
+            .minByOrNull { kotlin.math.abs(it.second - 3f) }
+        val sorted = listOfNotNull(primary, telephoto).distinctBy { it.first }
         if (sorted.size <= 1) {
-            lensRow.addView(TextView(this).apply { text = "REAR LENS DETAILS NOT EXPOSED"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
+            lensRow.addView(TextView(this).apply {
+                text = "TELEPHOTO LENS NOT EXPOSED"
+                textSize = 10f
+                setTextColor(0xFFCCCCCC.toInt())
+                gravity = Gravity.CENTER
+            })
             return
         }
         sorted.forEach { (label, ratio, focalLengthMm) ->
@@ -2191,6 +2204,28 @@ class MainActivity : ComponentActivity() {
         val step = activeCamera.cameraInfo.exposureState.exposureCompensationStep
         val evStops = exposureIndex * step.numerator.toFloat() / step.denominator.toFloat()
         exposureLabel.text = "EV  ${if (evStops > 0) "+" else ""}%.1f".format(Locale.US, evStops)
+    }
+
+    private fun togglePortraitBokeh() {
+        if (videoMode) {
+            Toast.makeText(this, "Portrait Bokeh is available in Photo mode only", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (proModeEnabled) {
+            Toast.makeText(this, "Turn off Pro controls before enabling Portrait Bokeh", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!extensionsInitialized) {
+            Toast.makeText(this, "Checking manufacturer Bokeh support…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!supportedPhotoExtensions.contains(ExtensionMode.BOKEH)) {
+            Toast.makeText(this, "This camera does not expose an OEM Bokeh extension", Toast.LENGTH_LONG).show()
+            return
+        }
+        selectedPhotoExtension = if (selectedPhotoExtension == ExtensionMode.BOKEH) null else ExtensionMode.BOKEH
+        updatePhotoExtensionLabel()
+        startCamera()
     }
 
     private fun cyclePhotoExtension() {
