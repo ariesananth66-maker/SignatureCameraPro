@@ -378,8 +378,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(16), dp(12), dp(16), dp(8))
-            // True AMOLED black; keep the top chrome visually quiet.
-            setBackgroundColor(android.graphics.Color.BLACK)
+            // Subtle translucent overlay keeps the iPhone-style viewfinder dominant.
+            setBackgroundColor(0x66000000)
         }
         val title = TextView(this).apply {
             text = "SIGNATURE  •  CAMERA"
@@ -430,7 +430,9 @@ class MainActivity : ComponentActivity() {
             contentDescription = "Microphone recording level"
         }
         // Compact iPhone-inspired status strip: keep the live viewfinder dominant.
-        title.text = "SIGNATURE"
+        // Keep the left side as breathing room; the camera UI should not carry
+        // a branding/status banner across the live viewfinder.
+        title.text = ""
         title.textSize = 11f
         title.letterSpacing = 0.28f
         title.alpha = 0.90f
@@ -441,6 +443,9 @@ class MainActivity : ComponentActivity() {
         }
         topHeader.addView(title, LinearLayout.LayoutParams(0, dp(42), 1f))
         top.addView(topHeader)
+        // Zoom is shown by the lens/zoom rail above the shutter, not as a
+        // duplicate status line under the top controls.
+        zoomLabel.visibility = View.GONE
         top.addView(zoomLabel)
         recordingTimer = android.widget.Chronometer(this).apply {
             text = "● REC  00:00"
@@ -946,10 +951,11 @@ class MainActivity : ComponentActivity() {
         videoRow.gravity = Gravity.CENTER
         videoRow.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         videoRow.elevation = 0f
+        // iPhone camera hierarchy: shutter row first, shooting-mode rail below.
+        panel.addView(mainRow)
         panel.addView(videoRow, LinearLayout.LayoutParams(-1, dp(54)).apply {
             setMargins(dp(18), dp(2), dp(18), dp(2))
         })
-        panel.addView(mainRow)
         val advancedScroll = ScrollView(this).apply {
             visibility = View.GONE
             isFillViewport = false
@@ -1088,10 +1094,12 @@ class MainActivity : ComponentActivity() {
         addQuickTile("PRO", "PRO MODE") { proButton.performClick() }
         addQuickTile("⚙", "SETTINGS") { setSettingsExpanded(advancedScroll.visibility != View.VISIBLE) }
         quickControlsPanel = quickGrid
-        root.addView(quickGrid, FrameLayout.LayoutParams(-1, dp(164), Gravity.TOP).apply {
+        // iOS 27-inspired controls tray: it opens immediately above the
+        // shutter dock instead of covering the upper viewfinder.
+        root.addView(quickGrid, FrameLayout.LayoutParams(-1, dp(164), Gravity.BOTTOM).apply {
             leftMargin = dp(12)
             rightMargin = dp(12)
-            topMargin = dp(104)
+            bottomMargin = dp(176)
         })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS   •   PINCH TO ZOOM"
@@ -1100,6 +1108,8 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         dockHint = hint
+        // Avoid instructional text competing with the viewfinder and controls.
+        hint.visibility = View.GONE
         panel.addView(hint)
         cameraDockPanel = panel
         topChrome = top
@@ -1125,6 +1135,13 @@ class MainActivity : ComponentActivity() {
         // Recalculate after the dock has been measured so the floating lens rail
         // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
+        panel.post {
+            val quickParams = quickGrid.layoutParams as? FrameLayout.LayoutParams
+            if (quickParams != null) {
+                quickParams.bottomMargin = panel.height + dp(8)
+                quickGrid.layoutParams = quickParams
+            }
+        }
         if (!landscapeLayout) {
             positionLensRailAboveDock()
             panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
