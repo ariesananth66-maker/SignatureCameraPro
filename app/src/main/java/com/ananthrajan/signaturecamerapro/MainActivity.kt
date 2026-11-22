@@ -119,6 +119,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var jpegQualityButton: Button
     private lateinit var settingsToggleButton: Button
     private lateinit var settingsDrawer: ScrollView
+    private lateinit var quickControlsPanel: View
     private lateinit var ratioQuickButton: Button
     private lateinit var modeQuickButton: Button
     private lateinit var mainControlsRow: LinearLayout
@@ -949,8 +950,8 @@ class MainActivity : ComponentActivity() {
                 lensRow.layoutParams = params
             }
         }
-        val advancedToggleButton = smallButton("⌃") {
-            setSettingsExpanded(advancedScroll.visibility != View.VISIBLE)
+        val advancedToggleButton = smallButton("☷") {
+            setQuickControlsExpanded(quickControlsPanel.visibility != View.VISIBLE)
             positionLensRailAboveDock()
         }
         settingsToggleButton = advancedToggleButton
@@ -993,6 +994,75 @@ class MainActivity : ComponentActivity() {
         modeQuickButton.elevation = 0f
         topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
         topHeader.addView(advancedToggleButton, LinearLayout.LayoutParams(dp(40), dp(42)).apply { leftMargin = dp(3) })
+
+        // Compact two-row quick panel: one tap to the most-used camera controls.
+        val quickGrid = android.widget.GridLayout(this).apply {
+            rowCount = 2
+            columnCount = 4
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(22).toFloat()
+                setColor(0xE61C1C1E.toInt())
+                setStroke(dp(1), 0x44777777)
+            }
+            elevation = dp(10).toFloat()
+            visibility = View.GONE
+            clipToPadding = true
+        }
+        fun addQuickTile(glyph: String, caption: String, action: () -> Unit) {
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                    action()
+                }
+            }
+            val icon = TextView(this).apply {
+                text = glyph
+                textSize = 19f
+                gravity = Gravity.CENTER
+                setTextColor(android.graphics.Color.WHITE)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(0xFF303034.toInt())
+                    setStroke(dp(1), 0x55777777)
+                }
+            }
+            tile.addView(icon, LinearLayout.LayoutParams(dp(42), dp(42)))
+            tile.addView(TextView(this).apply {
+                text = caption
+                textSize = 9f
+                maxLines = 1
+                gravity = Gravity.CENTER
+                setTextColor(0xFFE5E5EA.toInt())
+                setPadding(0, dp(3), 0, 0)
+            })
+            quickGrid.addView(tile, android.widget.GridLayout.LayoutParams(
+                android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f),
+                android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
+            ).apply {
+                width = 0
+                height = dp(76)
+                setMargins(dp(2), dp(1), dp(2), dp(1))
+            })
+        }
+        addQuickTile("⚡", "FLASH") { flashButton.performClick() }
+        addQuickTile("◷", "TIMER") { timerButton.performClick() }
+        addQuickTile("▣", "RATIO") { ratioQuickButton.performClick() }
+        addQuickTile("▦", "GRID") { gridButton.performClick() }
+        addQuickTile("HDR", "PHOTO FX") { photoExtensionButton.performClick() }
+        addQuickTile("◇", "STABILIZE") { videoStabilizationButton.performClick() }
+        addQuickTile("PRO", "PRO MODE") { proButton.performClick() }
+        addQuickTile("⚙", "SETTINGS") { setSettingsExpanded(advancedScroll.visibility != View.VISIBLE) }
+        quickControlsPanel = quickGrid
+        root.addView(quickGrid, FrameLayout.LayoutParams(-1, dp(164), Gravity.TOP).apply {
+            leftMargin = dp(12)
+            rightMargin = dp(12)
+            topMargin = dp(104)
+        })
         val hint = TextView(this).apply {
             text = "TAP TO FOCUS   •   PINCH TO ZOOM"
             textSize = 10f
@@ -1056,8 +1126,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun setQuickControlsExpanded(expanded: Boolean) {
+        if (!::quickControlsPanel.isInitialized) return
+        if (expanded && recording != null) {
+            Toast.makeText(this, "Stop recording before opening quick controls", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (expanded) setSettingsExpanded(false)
+        quickControlsPanel.visibility = if (expanded) View.VISIBLE else View.GONE
+        if (::settingsToggleButton.isInitialized) {
+            settingsToggleButton.contentDescription = if (expanded) "Close quick controls" else "Open quick controls"
+        }
+    }
+
     private fun setSettingsExpanded(expanded: Boolean) {
         if (!::settingsDrawer.isInitialized) return
+        if (expanded && ::quickControlsPanel.isInitialized) quickControlsPanel.visibility = View.GONE
         if (expanded && recording != null) {
             Toast.makeText(this, "Stop recording before opening camera settings", Toast.LENGTH_SHORT).show()
             return
