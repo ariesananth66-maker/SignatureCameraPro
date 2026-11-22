@@ -1343,8 +1343,11 @@ class MainActivity : ComponentActivity() {
         val logicalFocal = logical.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: return
         val logicalSize = logical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return
         val baseEquivalent = logicalFocal / logicalSize.width
-        val options = mutableListOf<Pair<String, Float>>()
-        options.add("1.0x" to 1f)
+        // Derive 35mm-equivalent focal length from each exposed physical
+        // camera's focal length and sensor width; never hardcode 16/24/72mm.
+        val options = mutableListOf<Triple<String, Float, Int>>()
+        val baseEquivalentMm = (baseEquivalent * 36f).toInt().coerceAtLeast(1)
+        options.add(Triple("1.0x", 1f, baseEquivalentMm))
         logical.physicalCameraIds.forEach { physicalId ->
             try {
                 val physical = manager.getCameraCharacteristics(physicalId)
@@ -1352,7 +1355,11 @@ class MainActivity : ComponentActivity() {
                 val size = physical.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
                 if (focal != null && size != null && size.width > 0f) {
                     val ratio = (focal / size.width) / baseEquivalent
-                    if (ratio.isFinite() && ratio in 0.25f..10f && options.none { kotlin.math.abs(it.second - ratio) < 0.12f }) options.add("%.1fx".format(Locale.US, ratio) to ratio)
+                    val equivalentMm = ((focal / size.width) * 36f).toInt().coerceAtLeast(1)
+                    if (ratio.isFinite() && ratio in 0.25f..10f &&
+                        options.none { kotlin.math.abs(it.second - ratio) < 0.12f }) {
+                        options.add(Triple("%.1fx".format(Locale.US, ratio), ratio, equivalentMm))
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -1361,10 +1368,11 @@ class MainActivity : ComponentActivity() {
             lensRow.addView(TextView(this).apply { text = "REAR LENS DETAILS NOT EXPOSED"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
             return
         }
-        sorted.forEach { (label, ratio) ->
+        sorted.forEach { (label, ratio, focalLengthMm) ->
             val button = Button(this)
-            button.text = label.replace("x", "×")
-            button.textSize = 13f
+            button.text = "${label.replace("x", "×")}\\n${focalLengthMm}mm"
+            button.textSize = 11f
+            button.setLineSpacing(0f, 0.9f)
             button.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
             button.isAllCaps = false
             button.setTextColor(if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFFFD60A.toInt() else android.graphics.Color.WHITE)
@@ -1375,7 +1383,7 @@ class MainActivity : ComponentActivity() {
                 setStroke(dp(1), if (kotlin.math.abs(ratio - 1f) < 0.12f) 0xFFE5E5EA.toInt() else 0xFF343438.toInt())
             }
             button.minWidth = 0
-            button.minHeight = dp(44)
+            button.minHeight = dp(48)
             button.setPadding(dp(10), 0, dp(10), 0)
             button.elevation = 3f
             // Never label a clamped digital zoom as a different physical lens preset.
@@ -1404,7 +1412,7 @@ class MainActivity : ComponentActivity() {
                 updateLensSelection(ratio)
                 button.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             }
-            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
+            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(52), 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
         }
     }
 
