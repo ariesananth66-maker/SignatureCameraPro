@@ -711,7 +711,7 @@ class MainActivity : ComponentActivity() {
             button.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(0xFF222225.toInt())
-                setStroke(1, 0xFF343438)
+                setStroke(1, 0xFF343438.toInt())
             }
             button.elevation = 5f
             column.addView(button, LinearLayout.LayoutParams(dp(58), dp(58)))
@@ -1104,7 +1104,7 @@ class MainActivity : ComponentActivity() {
             button.background = GradientDrawable().apply {
                 cornerRadius = 18f
                 setColor(if (selected) 0xFFFFD60A.toInt() else 0xFF222225.toInt())
-                setStroke(1, if (selected) 0xFFFFD60A.toInt() else 0xFF343438)
+                setStroke(1, if (selected) 0xFFFFD60A.toInt() else 0xFF343438.toInt())
             }
             button.isSelected = selected
         }
