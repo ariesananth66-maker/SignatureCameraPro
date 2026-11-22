@@ -137,6 +137,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private lateinit var galleryThumbnailView: ImageView
     private lateinit var flashButton: Button
     private lateinit var flashStatusLabel: TextView
+    private lateinit var timerStatusLabel: TextView
     private lateinit var topChrome: LinearLayout
     private lateinit var cameraDockPanel: LinearLayout
     private lateinit var screenFlashOverlay: View
@@ -197,7 +198,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         window.navigationBarColor = android.graphics.Color.BLACK
         val cameraPrefs = getSharedPreferences("signature_camera_settings", MODE_PRIVATE)
         gridEnabled = cameraPrefs.getBoolean("grid_enabled", false)
-        timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 10) it else 0 }
+        timerSeconds = cameraPrefs.getInt("timer_seconds", 0).let { if (it == 0 || it == 3 || it == 5 || it == 10) it else 0 }
         if (!cameraPrefs.getBoolean("quality_profile_upgrade_v1", false)) {
             cameraPrefs.edit()
                 .putBoolean("quality_profile_upgrade_v1", true)
@@ -470,6 +471,15 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             contentDescription = "Video recording duration"
         }
         top.addView(recordingTimer)
+        timerStatusLabel = TextView(this).apply {
+            textSize = 10f
+            letterSpacing = 0.08f
+            setTextColor(accentColor)
+            gravity = Gravity.CENTER
+            maxLines = 1
+            contentDescription = "Photo timer countdown setting"
+        }
+        top.addView(timerStatusLabel)
         top.addView(audioLevelLabel)
         audioLevelLabel.visibility = View.GONE
         audioLevelBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -561,10 +571,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             (it as Button).text = if (gridEnabled) "GRID ON" else "GRID OFF"
         }
         val timerButton = smallButton(if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s") {
-            timerSeconds = when (timerSeconds) { 0 -> 3; 3 -> 10; else -> 0 }
+            timerSeconds = when (timerSeconds) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 }
             getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit()
                 .putInt("timer_seconds", timerSeconds).apply()
             (it as Button).text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
+            updateTimerUi()
         }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
         val galleryButton = smallButton("RECENT") { showRecentCaptures() }
@@ -1317,6 +1328,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         syncFlashButtonLabel()
         updateModeButtonAppearance()
         updateModeSpecificSettings()
+        updateTimerUi()
         updateChromeForAspectRatio()
         // Keep the settings sheet's current open/closed state across PHOTO/VIDEO changes.
         updatePreviewAspectRatioFrame { startCamera() }
@@ -1475,6 +1487,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
     }
 
+    private fun updateTimerUi() {
+        if (!::timerStatusLabel.isInitialized) return
+        timerStatusLabel.text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
+        timerStatusLabel.visibility = if (videoMode) View.GONE else View.VISIBLE
+        timerStatusLabel.contentDescription = if (timerSeconds == 0) "Photo timer off" else "Photo timer set to ${timerSeconds} seconds"
+    }
+
     private fun syncFlashButtonLabel() {
         if (!::flashButton.isInitialized) return
         val state = when {
@@ -1488,6 +1507,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         flashButton.contentDescription = state
         if (::flashStatusLabel.isInitialized) flashStatusLabel.text = state
         updateQuickTopControls()
+        updateTimerUi()
     }
 
     private fun updateQuickTopControls() {
@@ -2535,9 +2555,12 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     updateLensSelection(state.zoomRatio)
                 }
                 updateManualRanges()
-                if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) discoverRearLenses() else {
+                if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                    lensRow.visibility = View.VISIBLE
+                    discoverRearLenses()
+                } else {
                     lensRow.removeAllViews()
-                    lensRow.addView(TextView(this).apply { text = "FRONT CAMERA"; textSize = 10f; setTextColor(0xFFCCCCCC.toInt()); gravity = Gravity.CENTER })
+                    lensRow.visibility = View.GONE
                 }
                 camera?.cameraInfo?.zoomState?.value?.let { updateLensSelection(it.zoomRatio) }
                 updateScreenFlashPreview()
