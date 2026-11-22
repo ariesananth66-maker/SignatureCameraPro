@@ -1164,6 +1164,7 @@ class MainActivity : ComponentActivity() {
         }
         if (expanded) setSettingsExpanded(false)
         quickControlsPanel.visibility = if (expanded) View.VISIBLE else View.GONE
+        updateLensRailVisibility()
         if (::settingsToggleButton.isInitialized) {
             settingsToggleButton.contentDescription = if (expanded) "Close quick controls" else "Open quick controls"
         }
@@ -1190,13 +1191,22 @@ class MainActivity : ComponentActivity() {
             settingsDrawer.scrollTo(0, 0)
         }
         settingsDrawer.visibility = if (expanded) View.VISIBLE else View.GONE
+        updateLensRailVisibility()
         if (::settingsToggleButton.isInitialized) {
             settingsToggleButton.text = if (expanded) "⌄" else "⌃"
             settingsToggleButton.contentDescription = if (expanded) "Hide camera settings" else "Open camera settings"
         }
         if (::mainControlsRow.isInitialized) mainControlsRow.visibility = View.VISIBLE
         if (::dockHint.isInitialized) dockHint.visibility = if (expanded) View.GONE else View.VISIBLE
-        if (::lensRow.isInitialized) lensRow.visibility = View.VISIBLE
+    }
+
+    // Keep the selectable lens rail out of the same vertical region occupied by
+    // either expandable panel. The shutter/mode dock remains anchored and visible.
+    private fun updateLensRailVisibility() {
+        if (!::lensRow.isInitialized) return
+        val panelOpen = (::quickControlsPanel.isInitialized && quickControlsPanel.visibility == View.VISIBLE) ||
+            (::settingsDrawer.isInitialized && settingsDrawer.visibility == View.VISIBLE)
+        lensRow.visibility = if (panelOpen) View.GONE else View.VISIBLE
     }
 
     private fun updateModeSpecificSettings() {
