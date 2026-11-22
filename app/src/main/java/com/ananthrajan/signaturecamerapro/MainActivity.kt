@@ -1370,7 +1370,7 @@ class MainActivity : ComponentActivity() {
         }
         sorted.forEach { (label, ratio, focalLengthMm) ->
             val button = Button(this)
-            button.text = "${label.replace("x", "×")}\\n${focalLengthMm}mm"
+            button.text = "${label.replace("x", "×")}\n${focalLengthMm}mm"
             button.textSize = 11f
             button.setLineSpacing(0f, 0.9f)
             button.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
