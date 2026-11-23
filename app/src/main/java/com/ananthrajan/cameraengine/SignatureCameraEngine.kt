@@ -3163,8 +3163,15 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             screenFlashHideRunnable = Runnable { hideScreenFlash() }
             handler.postDelayed(screenFlashHideRunnable!!, 2500L)
         }
+        // Choose the output route before any Bitmap work. Ultra HDR and OEM
+        // extensions must retain their original encoded output and metadata.
+        val processingRoute = PhotoProcessingPolicy.select(
+            fullFrame = cameraXController.uiState.photoAspectRatio == PhotoAspectRatio.FULL,
+            ultraHdr = ultraHdrCaptureEnabled,
+            oemExtension = selectedPhotoExtension != null
+        )
         val captureAction = Runnable {
-            if (cameraXController.uiState.photoAspectRatio == PhotoAspectRatio.FULL) {
+            if (processingRoute == PhotoProcessingRoute.FULL_FRAME_SDR) {
                 capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
                     override fun onCaptureSuccess(image: ImageProxy) {
                         val saved = try { saveFullFramePhoto(image) } catch (_: Exception) { false } finally { image.close() }
