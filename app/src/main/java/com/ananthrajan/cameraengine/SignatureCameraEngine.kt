@@ -2589,7 +2589,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                         request: CaptureRequest,
                         result: TotalCaptureResult
                     ) {
-                        if (request.template != CameraDevice.TEMPLATE_STILL_CAPTURE) return
+                        if (request.get(CaptureRequest.CONTROL_CAPTURE_INTENT) != CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE) return
                         val iso = result.get(CaptureResult.SENSOR_SENSITIVITY)
                         val exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME)
                         val resultNr = result.get(CaptureResult.NOISE_REDUCTION_MODE)
