@@ -3559,7 +3559,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         var upright: Bitmap? = null
         var processed: Bitmap? = null
         return try {
-            decoded = BitmapFactory.decodeByteArray(originalBytes, 0, originalBytes.size)
+            val decodeOptions = BitmapFactory.Options().apply {
+                inMutable = true
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            decoded = BitmapFactory.decodeByteArray(originalBytes, 0, originalBytes.size, decodeOptions)
                 ?: throw IllegalStateException("JPEG decode failed")
             val rotation = image.imageInfo.rotationDegrees
             upright = if (rotation != 0) {
