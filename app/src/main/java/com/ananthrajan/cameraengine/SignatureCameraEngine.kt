@@ -512,12 +512,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         // Lens selector is floated above the bottom camera dock, like a native camera app.
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-        val landscapeLayout = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        if (!landscapeLayout) {
-            root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                setMargins(dp(30), 0, dp(30), dp(238))
-            })
-        }
+        // Keep the lens rail floating above the dock in every orientation.
+        // Its measured position is recalculated from the dock height below.
+        root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            setMargins(dp(30), 0, dp(30), dp(238))
+        })
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1041,7 +1040,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             addView(advancedPanel)
         }
         settingsDrawer = advancedScroll
-        val advancedSettingsHeight = if (landscapeLayout) dp(104) else dp(260)
         // Settings sheet is attached to the root as a top drop-down overlay.
         fun positionLensRailAboveDock() {
             // Keep the lens selector completely clear of the dock in both collapsed
@@ -1065,13 +1063,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         advancedToggleButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         advancedToggleButton.elevation = 0f
         advancedToggleButton.setTextColor(android.graphics.Color.WHITE)
-        if (landscapeLayout) {
-            // In landscape, keep the lens rail inside the dock so it cannot be
-            // pushed underneath the top status strip by the expanded settings sheet.
-            panel.addView(lensRow, 0, LinearLayout.LayoutParams(-1, dp(44)).apply {
-                setMargins(dp(12), dp(2), dp(12), dp(2))
-            })
-        }
         // Keep drawer toggle in the safe top action row, clear of the shutter dock.
         title.gravity = Gravity.CENTER_VERTICAL or Gravity.START
         title.textSize = 10f
@@ -1263,11 +1254,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
             quickGrid.layoutParams = quickParams
         }
-        if (!landscapeLayout) {
+        positionLensRailAboveDock()
+        panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             positionLensRailAboveDock()
-            panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                positionLensRailAboveDock()
-            }
         }
         lensRow.bringToFront()
         top.bringToFront()
