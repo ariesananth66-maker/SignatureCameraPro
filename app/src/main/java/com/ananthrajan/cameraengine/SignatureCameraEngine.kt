@@ -86,6 +86,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import kotlin.math.pow
 
 enum class CameraThemeStyle { IPHONE_PRO, SAMSUNG_ONE_UI }
@@ -208,6 +209,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private var jpegQuality = 95
     // Exact Camera2 SENSOR_TIMESTAMP -> ISO bridge for front still JPEGs only.
     private val frontCaptureIsoBySensorTimestamp = ConcurrentHashMap<Long, Int>()
+    private val photoProcessingExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "SignaturePhotoProcessing").apply { isDaemon = true }
+    }
     private var exposureIndex = 0
     @Volatile private var latestAutoIso = 400
     @Volatile private var latestAutoShutterNs = 10_000_000L
@@ -2698,7 +2702,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         selector: CameraSelector
     ) {
         ultraHdrCaptureEnabled = false
-        if (videoMode || selectedPhotoExtension != null) return
+        // Keep front-camera captures in standard SDR JPEG so the selective
+        // high-ISO chroma path can run. Rear Ultra HDR behavior is unchanged.
+        if (videoMode || selectedPhotoExtension != null || selector == CameraSelector.DEFAULT_FRONT_CAMERA) return
         try {
             val cameraInfo = provider.getCameraInfo(selector)
             val supportedFormats = ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
@@ -3476,6 +3482,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             ultraHdr = ultraHdrCaptureEnabled,
             oemExtension = selectedPhotoExtension != null
         )
+        Log.i(
+            "SignatureCaptureRoute",
+            "CAPTURE_ROUTE route=$processingRoute facing=${if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) "FRONT" else "REAR"} " +
+                "ultraHdr=$ultraHdrCaptureEnabled extension=${selectedPhotoExtension ?: "OFF"} ratio=${cameraXController.uiState.photoAspectRatio}"
+        )
         val captureAction = Runnable {
             if (processingRoute == PhotoProcessingRoute.FULL_FRAME_SDR) {
                 capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
@@ -3501,14 +3512,28 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 // Front standard-SDR JPEG only. Exact sensor timestamp match is mandatory.
                 capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
                     override fun onCaptureSuccess(image: ImageProxy) {
-                        val saved = try { saveFrontStandardSdrPhoto(image) } catch (e: Exception) {
-                            Log.w("SignatureChromaNR", "Front JPEG processing failed; preserving original: " + e.javaClass.simpleName)
-                            false
-                        } finally { image.close() }
-                        if (useScreenFlash) hideScreenFlash()
-                        if (::captureButton.isInitialized) captureButton.isEnabled = true
-                        if (saved) refreshGalleryThumbnail()
-                        Toast.makeText(this@BaseSignatureCameraActivity, if (saved) "Photo saved to Gallery" else "Photo save failed", Toast.LENGTH_SHORT).show()
+                        try {
+                            photoProcessingExecutor.execute {
+                                val saved = try { saveFrontStandardSdrPhoto(image) } catch (e: Exception) {
+                                    Log.w("SignatureChromaNR", "Front JPEG processing failed; preserving original: " + e.javaClass.simpleName, e)
+                                    false
+                                } finally {
+                                    image.close()
+                                }
+                                handler.post {
+                                    if (useScreenFlash) hideScreenFlash()
+                                    if (::captureButton.isInitialized) captureButton.isEnabled = true
+                                    if (saved) refreshGalleryThumbnail()
+                                    Toast.makeText(this@BaseSignatureCameraActivity, if (saved) "Photo saved to Gallery" else "Photo save failed", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            image.close()
+                            Log.e("SignatureChromaNR", "Background executor unavailable; original image not processed", e)
+                            if (useScreenFlash) hideScreenFlash()
+                            if (::captureButton.isInitialized) captureButton.isEnabled = true
+                            Toast.makeText(this@BaseSignatureCameraActivity, "Photo processing unavailable", Toast.LENGTH_LONG).show()
+                        }
                     }
                     override fun onError(exception: ImageCaptureException) {
                         if (useScreenFlash) hideScreenFlash()
@@ -3780,6 +3805,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     override fun onPause() {
         if (::cameraRoot.isInitialized) uiOrientationListener.disable()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        photoProcessingExecutor.shutdown()
+        super.onDestroy()
     }
 
     override fun onStop() {
