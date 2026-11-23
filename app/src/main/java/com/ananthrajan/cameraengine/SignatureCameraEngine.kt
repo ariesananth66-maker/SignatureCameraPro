@@ -3233,6 +3233,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         val cropped = Bitmap.createBitmap(upright, (upright.width - cropWidth) / 2, (upright.height - cropHeight) / 2, cropWidth, cropHeight)
         if (cropped !== upright) upright.recycle()
+        val processed = SignaturePhotoProcessor.applyNaturalHighlightRollOff(cropped)
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "Signature_FULL_$stamp.jpg")
@@ -3248,7 +3249,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 ?: throw IllegalStateException("Could not create image file")
             uri = savedUri
             contentResolver.openOutputStream(savedUri)?.use { stream ->
-                if (!cropped.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(85, 100), stream)) {
+                if (!processed.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(85, 100), stream)) {
                     throw IllegalStateException("JPEG encoding failed")
                 }
             } ?: throw IllegalStateException("Could not open image file")
@@ -3260,6 +3261,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             uri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) { } }
             false
         } finally {
+            if (processed !== cropped && !processed.isRecycled) processed.recycle()
             if (!cropped.isRecycled) cropped.recycle()
         }
     }
