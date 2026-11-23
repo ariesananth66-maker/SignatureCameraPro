@@ -98,6 +98,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private lateinit var cameraRoot: FrameLayout
     private val rotatableCameraUiViews = mutableListOf<View>()
     private var lastAppliedCameraUiAngle = 0f
+    private var uiOrientationBaseline: Int? = null
     private val uiOrientationListener by lazy {
         object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
@@ -581,6 +582,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
 
         val utilityRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(-1, -2)
         }
@@ -972,7 +975,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
         }
         rotatableCameraUiViews.add(flashButton)
-        rotatableCameraUiViews.add(flip)
         fun sideControl(button: View, caption: String, status: Boolean = false): LinearLayout {
             val column = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -993,8 +995,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 includeFontPadding = false
                 minWidth = dp(72)
             }
-            rotatableCameraUiViews.add(label)
-            column.addView(label, LinearLayout.LayoutParams(-2, dp(18)))
+            column.addView(label, LinearLayout.LayoutParams(-2, dp(20)))
+            // Keep each side icon and caption together during rotation.
+            rotatableCameraUiViews.add(column)
             return column
         }
         flashStatusLabel = TextView(this).apply {
@@ -1026,15 +1029,18 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             isFocusable = true
             setOnClickListener { openPhotoGalleryDirectly() }
         }
-        rotatableCameraUiViews.add(galleryThumbnailView)
         // Three equally weighted dock positions keep both side controls balanced
         // around a fixed 76dp shutter. Side icons share the shutter's vertical axis.
+        mainRow.clipChildren = false
+        mainRow.clipToPadding = false
         mainRow.setPadding(dp(10), 0, dp(10), 0)
         mainRow.addView(sideControl(galleryThumbnailView, "GALLERY"), LinearLayout.LayoutParams(0, dp(84), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         mainRow.addView(captureButton, LinearLayout.LayoutParams(dp(76), dp(76)).apply { gravity = Gravity.CENTER_VERTICAL })
         mainRow.addView(sideControl(flip, "FLIP"), LinearLayout.LayoutParams(0, dp(84), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         syncFlashButtonLabel()
         // Camera-style mode rail sits above the shutter, keeping capture as the primary action.
+        videoRow.clipChildren = false
+        videoRow.clipToPadding = false
         videoRow.setPadding(dp(18), dp(3), dp(18), dp(3))
         videoRow.gravity = Gravity.CENTER
         videoRow.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
@@ -1607,7 +1613,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             text = label
             textSize = 13f
             maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            ellipsize = null
             includeFontPadding = false
             isAllCaps = false
             setTextColor(android.graphics.Color.WHITE)
@@ -3458,12 +3464,30 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         updateScreenFlashPreview()
     }
 
+    private fun resetWhitelistedCameraUiRotation() {
+        // Start every fresh foreground session upright, then interpret sensor
+        // movement relative to its first sample. This avoids assuming the
+        // device's natural-orientation baseline is identical on every phone.
+        uiOrientationBaseline = null
+        lastAppliedCameraUiAngle = 0f
+        rotatableCameraUiViews.forEach { view ->
+            view.animate().cancel()
+            view.rotation = 0f
+        }
+    }
+
     private fun updateWhitelistedCameraUiRotation(orientation: Int) {
         if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return
+        val baseline = uiOrientationBaseline
+        if (baseline == null) {
+            uiOrientationBaseline = orientation
+            return
+        }
+        val relativeOrientation = (orientation - baseline + 360) % 360
         val targetAngle = when {
-            orientation in 335..359 || orientation in 0..25 -> 0f
-            orientation in 245..295 -> 90f
-            orientation in 65..115 -> 270f
+            relativeOrientation in 60..120 -> 270f
+            relativeOrientation in 240..300 -> 90f
+            relativeOrientation in 330..359 || relativeOrientation in 0..30 -> 0f
             else -> lastAppliedCameraUiAngle
         }
         if (targetAngle == lastAppliedCameraUiAngle) return
@@ -3477,6 +3501,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (::cameraRoot.isInitialized && uiOrientationListener.canDetectOrientation()) {
+            resetWhitelistedCameraUiRotation()
             uiOrientationListener.enable()
         }
     }
