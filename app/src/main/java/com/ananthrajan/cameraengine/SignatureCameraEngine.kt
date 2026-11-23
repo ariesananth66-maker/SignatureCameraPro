@@ -597,7 +597,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 .putInt("timer_seconds", timerSeconds).apply()
             (it as Button).text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
             updateTimerUi()
-        }
+        }.also { rotatableCameraUiViews.add(it) }
         val toolsButton = smallButton("DEVICE INFO") { showHardwareReport() }
         val galleryButton = smallButton("RECENT") { showRecentCaptures() }
         utilityRow.addView(gridButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
@@ -829,8 +829,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(0, dp(5), 0, dp(5))
         }
-        photoModeButton = smallButton("PHOTO") { setCameraMode(false) }
-        videoModeButton = smallButton("VIDEO") { setCameraMode(true) }
+        photoModeButton = smallButton("PHOTO") { setCameraMode(false) }.also { rotatableCameraUiViews.add(it) }
+        videoModeButton = smallButton("VIDEO") { setCameraMode(true) }.also { rotatableCameraUiViews.add(it) }
         videoQualityButton = smallButton("VIDEO QUALITY: " + when (videoQuality) {
             Quality.UHD -> "4K"
             Quality.FHD -> "FHD"
@@ -971,6 +971,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 }
             }
         }
+        rotatableCameraUiViews.add(flashButton)
+        rotatableCameraUiViews.add(galleryThumbnailView)
+        rotatableCameraUiViews.add(flip)
         fun sideControl(button: View, caption: String, status: Boolean = false): LinearLayout {
             val column = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -988,9 +991,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 setTextColor(0xFFB8B8BE.toInt())
                 gravity = Gravity.CENTER
                 maxLines = 1
+                includeFontPadding = false
+                minWidth = dp(72)
             }
             rotatableCameraUiViews.add(label)
-            column.addView(label, LinearLayout.LayoutParams(-1, dp(18)))
+            column.addView(label, LinearLayout.LayoutParams(-2, dp(18)))
             return column
         }
         flashStatusLabel = TextView(this).apply {
@@ -1106,11 +1111,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }.apply { textSize = 10f; setPadding(dp(3), 0, dp(3), 0) }
         ratioQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         ratioQuickButton.elevation = 0f
+        rotatableCameraUiViews.add(ratioQuickButton)
         topHeader.addView(ratioQuickButton, LinearLayout.LayoutParams(dp(54), dp(40)).apply { leftMargin = dp(3) })
         modeQuickButton = smallButton("PHOTO") { if (videoMode) cycleVideoQuality() else cyclePhotoExtension() }
             .apply { textSize = 9f; setPadding(dp(2), 0, dp(2), 0) }
         modeQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         modeQuickButton.elevation = 0f
+        rotatableCameraUiViews.add(modeQuickButton)
         topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
         if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
             // iOS 27 places the six-dot controls entry at the lower-right of the shutter dock.
@@ -1152,7 +1159,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
             elevation = dp(10).toFloat()
             visibility = View.GONE
-            clipToPadding = true
+            clipChildren = false
+            clipToPadding = false
         }
         fun addQuickTile(glyph: String, caption: String, action: () -> Unit) {
             val tile = LinearLayout(this).apply {
@@ -1185,6 +1193,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 setTextColor(0xFFE5E5EA.toInt())
                 setPadding(0, dp(3), 0, 0)
+                includeFontPadding = false
+                minWidth = dp(70)
             }
             rotatableCameraUiViews.add(tileCaption)
             tile.addView(tileCaption)
@@ -1654,6 +1664,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
             button.isEnabled = zoomState == null || (ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio)
             button.visibility = if (button.isEnabled) View.VISIBLE else View.GONE
+            rotatableCameraUiViews.add(button)
             lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(3), 0, dp(3), 0)
             })
@@ -3450,9 +3461,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private fun updateWhitelistedCameraUiRotation(orientation: Int) {
         if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return
         val targetAngle = when {
-            orientation in 60..120 -> 270f
-            orientation in 240..300 -> 90f
-            orientation in 330..359 || orientation in 0..30 -> 0f
+            orientation in 335..359 || orientation in 0..25 -> 0f
+            orientation in 245..295 -> 90f
+            orientation in 65..115 -> 270f
             else -> lastAppliedCameraUiAngle
         }
         if (targetAngle == lastAppliedCameraUiAngle) return
