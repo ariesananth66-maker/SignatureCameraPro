@@ -12,6 +12,8 @@ import android.hardware.camera2.DngCreator
 import android.media.Image
 import android.media.ImageReader
 import java.io.File
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import android.net.Uri
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.Camera2CameraControl
@@ -78,10 +80,12 @@ import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.pow
 
 enum class CameraThemeStyle { IPHONE_PRO, SAMSUNG_ONE_UI }
@@ -202,6 +206,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private var gridEnabled = false
     private var timerSeconds = 0
     private var jpegQuality = 95
+    // Exact Camera2 SENSOR_TIMESTAMP -> ISO bridge for front still JPEGs only.
+    private val frontCaptureIsoBySensorTimestamp = ConcurrentHashMap<Long, Int>()
     private var exposureIndex = 0
     @Volatile private var latestAutoIso = 400
     @Volatile private var latestAutoShutterNs = 10_000_000L
@@ -2591,13 +2597,20 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     ) {
                         if (request.get(CaptureRequest.CONTROL_CAPTURE_INTENT) != CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE) return
                         val iso = result.get(CaptureResult.SENSOR_SENSITIVITY)
+                        val sensorTimestamp = result.get(CaptureResult.SENSOR_TIMESTAMP)
+                        if (facing == "FRONT" && iso != null && sensorTimestamp != null) {
+                            frontCaptureIsoBySensorTimestamp[sensorTimestamp] = iso
+                            while (frontCaptureIsoBySensorTimestamp.size > 16) {
+                                frontCaptureIsoBySensorTimestamp.keys.minOrNull()?.let { frontCaptureIsoBySensorTimestamp.remove(it) } ?: break
+                            }
+                        }
                         val exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME)
                         val resultNr = result.get(CaptureResult.NOISE_REDUCTION_MODE)
                         val requestNr = request.get(CaptureRequest.NOISE_REDUCTION_MODE)
                         val exposureMs = exposureNs?.let { it / 1_000_000.0 }
                         Log.i(
                             "SignatureCaptureDiag",
-                            "STILL_CAPTURE facing=$facing cameraId=$cameraId frame=${result.frameNumber} " +
+                            "STILL_CAPTURE facing=$facing cameraId=$cameraId frame=${result.frameNumber} sensorTimestamp=${sensorTimestamp ?: "unavailable"} " +
                                 "ISO=${iso ?: "unavailable"} exposureNs=${exposureNs ?: "unavailable"} " +
                                 "exposureMs=${exposureMs?.let { "%.3f".format(Locale.US, it) } ?: "unavailable"} " +
                                 "NR_requested=${requestNr?.let { nrModeName(it) } ?: "not-set"} " +
@@ -3479,6 +3492,30 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                         Toast.makeText(this@BaseSignatureCameraActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 })
+            } else if (
+                processingRoute == PhotoProcessingRoute.STANDARD_SDR &&
+                cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA &&
+                !ultraHdrCaptureEnabled &&
+                selectedPhotoExtension == null
+            ) {
+                // Front standard-SDR JPEG only. Exact sensor timestamp match is mandatory.
+                capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        val saved = try { saveFrontStandardSdrPhoto(image) } catch (e: Exception) {
+                            Log.w("SignatureChromaNR", "Front JPEG processing failed; preserving original: " + e.javaClass.simpleName)
+                            false
+                        } finally { image.close() }
+                        if (useScreenFlash) hideScreenFlash()
+                        if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        if (saved) refreshGalleryThumbnail()
+                        Toast.makeText(this@BaseSignatureCameraActivity, if (saved) "Photo saved to Gallery" else "Photo save failed", Toast.LENGTH_SHORT).show()
+                    }
+                    override fun onError(exception: ImageCaptureException) {
+                        if (useScreenFlash) hideScreenFlash()
+                        if (::captureButton.isInitialized) captureButton.isEnabled = true
+                        Toast.makeText(this@BaseSignatureCameraActivity, "Photo failed: " + exception.message, Toast.LENGTH_LONG).show()
+                    }
+                })
             } else {
                 capture.takePicture(options, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
@@ -3496,6 +3533,124 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
         }
         if (useScreenFlash) handler.postDelayed(captureAction, 120L) else captureAction.run()
+    }
+
+    private fun saveFrontStandardSdrPhoto(image: ImageProxy): Boolean {
+        val plane = image.planes.firstOrNull() ?: return false
+        val buffer = plane.buffer.duplicate()
+        val originalBytes = ByteArray(buffer.remaining())
+        buffer.get(originalBytes)
+        if (image.format != ImageFormat.JPEG) {
+            Log.w("SignatureChromaNR", "Unexpected front format=" + image.format + "; no pixel processing")
+            return false
+        }
+        val sensorTimestamp = image.imageInfo.timestamp
+        val matchedIso = frontCaptureIsoBySensorTimestamp.remove(sensorTimestamp)
+        if (matchedIso == null) {
+            Log.i("SignatureChromaNR", "BYPASS timestamp mismatch imageTimestamp=" + sensorTimestamp + "; original JPEG")
+            return saveFrontJpegBytes(originalBytes, originalBytes, processed = false)
+        }
+        if (matchedIso < 800) {
+            Log.i("SignatureChromaNR", "BYPASS ISO=" + matchedIso + " below threshold; original JPEG")
+            return saveFrontJpegBytes(originalBytes, originalBytes, processed = false)
+        }
+
+        var decoded: Bitmap? = null
+        var upright: Bitmap? = null
+        var processed: Bitmap? = null
+        return try {
+            decoded = BitmapFactory.decodeByteArray(originalBytes, 0, originalBytes.size)
+                ?: throw IllegalStateException("JPEG decode failed")
+            val rotation = image.imageInfo.rotationDegrees
+            upright = if (rotation != 0) {
+                val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                Bitmap.createBitmap(decoded!!, 0, 0, decoded!!.width, decoded!!.height, matrix, true)
+                    .also { if (it !== decoded) decoded?.recycle() }
+            } else decoded
+            processed = SignaturePhotoProcessor.applyHighIsoFrontChromaDenoise(upright!!)
+            val output = ByteArrayOutputStream()
+            if (!processed!!.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(90, 100), output)) {
+                throw IllegalStateException("JPEG encode failed")
+            }
+            Log.i("SignatureChromaNR", "APPLIED front chroma-only NR ISO=" + matchedIso + " timestamp=" + sensorTimestamp + " rotation=" + rotation)
+            saveFrontJpegBytes(output.toByteArray(), originalBytes, processed = true)
+        } catch (e: Exception) {
+            Log.w("SignatureChromaNR", "PROCESS fallback to original JPEG: " + e.javaClass.simpleName + ": " + e.message)
+            saveFrontJpegBytes(originalBytes, originalBytes, processed = false)
+        } finally {
+            processed?.let { if (!it.isRecycled) it.recycle() }
+            upright?.let { if (it !== decoded && !it.isRecycled) it.recycle() }
+            decoded?.let { if (!it.isRecycled) it.recycle() }
+        }
+    }
+
+    private fun saveFrontJpegBytes(bytes: ByteArray, originalExifBytes: ByteArray, processed: Boolean): Boolean {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "Signature_Front_$stamp.jpg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SignatureCameraPro")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        var uri: Uri? = null
+        return try {
+            val savedUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Could not create image file")
+            uri = savedUri
+            contentResolver.openOutputStream(savedUri)?.use { it.write(bytes) }
+                ?: throw IllegalStateException("Could not open image file")
+            if (processed) {
+                try {
+                    copyFrontPhotoExif(originalExifBytes, savedUri)
+                } catch (metadataError: Exception) {
+                    Log.w("SignatureChromaNR", "EXIF copy failed; restoring untouched source JPEG: " + metadataError.javaClass.simpleName)
+                    contentResolver.openOutputStream(savedUri, "wt")?.use { it.write(originalExifBytes) }
+                        ?: throw IllegalStateException("Could not restore original JPEG after EXIF failure")
+                }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                contentResolver.update(savedUri, ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                }, null, null)
+            }
+            true
+        } catch (e: Exception) {
+            uri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) { } }
+            Log.e("SignatureChromaNR", "Save failed: " + e.javaClass.simpleName + ": " + e.message)
+            false
+        }
+    }
+
+    private fun copyFrontPhotoExif(originalBytes: ByteArray, destination: Uri) {
+        val source = ExifInterface(ByteArrayInputStream(originalBytes))
+        val descriptor = contentResolver.openFileDescriptor(destination, "rw")
+            ?: throw IllegalStateException("Could not open saved JPEG metadata")
+        descriptor.use { parcel ->
+            val target = ExifInterface(parcel.fileDescriptor)
+            val tags = arrayOf(
+                ExifInterface.TAG_MAKE, ExifInterface.TAG_MODEL, ExifInterface.TAG_SOFTWARE,
+                ExifInterface.TAG_DATETIME, ExifInterface.TAG_DATETIME_ORIGINAL,
+                ExifInterface.TAG_DATETIME_DIGITIZED, ExifInterface.TAG_EXPOSURE_TIME,
+                ExifInterface.TAG_F_NUMBER, ExifInterface.TAG_ISO_SPEED_RATINGS,
+                ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, ExifInterface.TAG_EXPOSURE_PROGRAM,
+                ExifInterface.TAG_METERING_MODE, ExifInterface.TAG_FLASH,
+                ExifInterface.TAG_FOCAL_LENGTH, ExifInterface.TAG_WHITE_BALANCE,
+                ExifInterface.TAG_DIGITAL_ZOOM_RATIO, ExifInterface.TAG_LENS_MAKE,
+                ExifInterface.TAG_LENS_MODEL, ExifInterface.TAG_GPS_LATITUDE,
+                ExifInterface.TAG_GPS_LATITUDE_REF, ExifInterface.TAG_GPS_LONGITUDE,
+                ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_ALTITUDE,
+                ExifInterface.TAG_GPS_ALTITUDE_REF, ExifInterface.TAG_GPS_TIMESTAMP,
+                ExifInterface.TAG_GPS_DATESTAMP, ExifInterface.TAG_ARTIST,
+                ExifInterface.TAG_COPYRIGHT
+            )
+            for (tag in tags) {
+                try { source.getAttribute(tag)?.let { target.setAttribute(tag, it) } } catch (_: Exception) { }
+            }
+            target.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+            target.saveAttributes()
+        }
     }
 
     private fun saveFullFramePhoto(image: ImageProxy): Boolean {
