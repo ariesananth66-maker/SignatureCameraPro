@@ -333,7 +333,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun buildCameraUi() {
-        val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            clipChildren = false
+            clipToPadding = false
+        }
         cameraRoot = root
         rotatableCameraUiViews.clear()
         lastAppliedCameraUiAngle = 0f
@@ -474,6 +478,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         val topHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false
+            clipToPadding = false
             setPadding(0, dp(2), 0, dp(2))
         }
         topHeader.addView(title, LinearLayout.LayoutParams(0, dp(42), 1f))
@@ -974,7 +980,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 }
             }
         }
-        rotatableCameraUiViews.add(flashButton)
         fun sideControl(button: View, caption: String, status: Boolean = false): LinearLayout {
             val column = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -1007,7 +1012,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             maxLines = 1
         }
-        rotatableCameraUiViews.add(flashStatusLabel)
         mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
         mainRow.gravity = Gravity.CENTER
@@ -1101,11 +1105,18 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         val flashControl = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false
+            clipToPadding = false
             addView(flashButton, LinearLayout.LayoutParams(dp(38), dp(42)))
             addView(flashStatusLabel, LinearLayout.LayoutParams(-2, dp(24)).apply {
-                marginStart = dp(1)
+                marginStart = dp(6)
             })
         }
+        // Rotate the flash glyph and OFF/AUTO label together so they never
+        // collide or drift apart when the device is tilted.
+        rotatableCameraUiViews.add(flashControl)
+        topHeader.clipChildren = false
+        topHeader.clipToPadding = false
         topHeader.addView(flashControl, LinearLayout.LayoutParams(-2, dp(42)))
         ratioQuickButton = smallButton("4:3") {
             if (videoMode) selectVideoAspectRatio(if (cameraXController.uiState.videoAspectRatio == VideoAspectRatio.RATIO_16_9) VideoAspectRatio.RATIO_4_3 else VideoAspectRatio.RATIO_16_9)
