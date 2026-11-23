@@ -1254,7 +1254,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         // Recalculate after the dock has been measured so the floating lens rail
         // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
-        if (uiOrientationListener.canDetectOrientation()) uiOrientationListener.enable()
         panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val quickParams = quickGrid.layoutParams as? FrameLayout.LayoutParams ?: return@addOnLayoutChangeListener
             val insets = root.rootWindowInsets
@@ -3443,8 +3442,19 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         updateScreenFlashPreview()
     }
 
-${insert}    override fun onStop() {
+${insert}    override fun onResume() {
+        super.onResume()
+        if (::cameraRoot.isInitialized && uiOrientationListener.canDetectOrientation()) {
+            uiOrientationListener.enable()
+        }
+    }
+
+    override fun onPause() {
         if (::cameraRoot.isInitialized) uiOrientationListener.disable()
+        super.onPause()
+    }
+
+    override fun onStop() {
         hideScreenFlash()
         // Finalize any active recording when the camera screen leaves the foreground.
         if (recording != null) {
