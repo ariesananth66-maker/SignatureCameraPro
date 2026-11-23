@@ -2277,6 +2277,19 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         sceneModeButton.isEnabled = supportedSceneModes.size > 1
     }
 
+    private fun restoreExposureCompensation() {
+        val activeCamera = camera ?: return
+        val state = activeCamera.cameraInfo.exposureState
+        val range = state.exposureCompensationRange
+        exposureIndex = exposureIndex.coerceIn(range.lower, range.upper)
+        cameraXController.setExposureCompensation(exposureIndex)
+        val step = state.exposureCompensationStep
+        val evStops = if (step.denominator != 0) {
+            exposureIndex * step.numerator.toFloat() / step.denominator.toFloat()
+        } else 0f
+        exposureLabel.text = "EV  ${if (evStops > 0) "+" else ""}%.1f".format(Locale.US, evStops)
+    }
+
     private fun resetExposureCompensation() {
         if (proModeEnabled) {
             Toast.makeText(this, "EV compensation is unavailable in Manual Pro mode", Toast.LENGTH_SHORT).show()
@@ -2605,10 +2618,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 updateScreenFlashPreview()
                 try {
                     Camera2CameraControl.from(camera!!.cameraControl).clearCaptureRequestOptions()
-                    camera!!.cameraControl.setExposureCompensationIndex(0)
                 } catch (_: Exception) { }
-                exposureIndex = 0
-                exposureLabel.text = "EV  0"
+                // Preserve Auto-mode EV across a rebind. Camera switches already
+                // explicitly reset exposureIndex before startCamera() is called.
+                if (!videoMode) restoreExposureCompensation()
                 // The reset above clears all Camera2 interop options. Re-apply
                 // the selected video FPS and recording options only after the
                 // final camera bind/reset, otherwise 60 FPS silently falls back
