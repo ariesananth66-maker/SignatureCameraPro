@@ -174,6 +174,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private var awbModeIndex = 0
     private var manualFocusEnabled = false
     private var proModeEnabled = false
+    // The Pro panel is UI-only until the user explicitly changes ISO or shutter.
+    private var manualExposureActive = false
     private var imageCapture: ImageCapture? = null
     private var ultraHdrCaptureEnabled = false
     private var camera: Camera? = null
@@ -593,21 +595,18 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 return@smallButton
             }
             if (!proModeEnabled) {
-                // Snapshot the live AE result before disabling AE. Reusing stale
-                // saved ISO/shutter values here can make the viewfinder go dark.
-                if (!autoExposureSnapshotAvailable) {
-                    Toast.makeText(this, "Camera is still metering. Try PRO again in a moment.", Toast.LENGTH_SHORT).show()
-                    return@smallButton
-                }
-                seedManualExposureFromAuto()
+                // Keep CameraX AE running when the panel opens. Stored/default
+                // ISO and shutter values are not applied until a slider is moved.
                 proModeEnabled = true
+                manualExposureActive = false
                 manualExposureReapplyPending = false
                 proPanel.visibility = View.VISIBLE
                 (it as Button).text = "PRO ON"
                 manualFocusEnabled = manualFocusProgress > 0 && minimumFocusDistance > 0f
-                applyManualCapture()
+                if (manualFocusEnabled) applyManualFocusOnly()
             } else {
                 proModeEnabled = false
+                manualExposureActive = false
                 manualExposureReapplyPending = false
                 proPanel.visibility = View.GONE
                 (it as Button).text = "PRO CONTROLS"
@@ -657,7 +656,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     isoValue.text = "ISO $manualIso"
                     if (fromUser) {
                         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_iso", manualIso).apply()
-                        if (proModeEnabled) applyManualCapture()
+                        if (proModeEnabled) {
+                            manualExposureActive = true
+                            applyManualCapture()
+                        }
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -673,7 +675,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     shutterValue.text = "SHUTTER ${formatShutter(manualShutterNs)}"
                     if (fromUser) {
                         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putLong("manual_shutter_ns", manualShutterNs).apply()
-                        if (proModeEnabled) applyManualCapture()
+                        if (proModeEnabled) {
+                            manualExposureActive = true
+                            applyManualCapture()
+                        }
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -715,7 +720,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                         getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_focus_progress", manualFocusProgress).apply()
                         if (proModeEnabled && minimumFocusDistance > 0f) {
                             manualFocusEnabled = manualFocusProgress > 0
-                            applyManualCapture()
+                            if (manualExposureActive) applyManualCapture() else applyManualFocusOnly()
                         }
                     }
                 }
@@ -1802,7 +1807,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         val point: MeteringPoint = previewView.meteringPointFactory.createPoint(x, y)
         // In Auto mode meter both AF and AE. Manual Pro exposure has AE disabled,
         // so meter AF only and leave the selected ISO/shutter values untouched.
-        val meteringFlags = if (proModeEnabled) {
+        val meteringFlags = if (manualExposureActive) {
             FocusMeteringAction.FLAG_AF
         } else {
             FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
@@ -1830,6 +1835,33 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         isoSlider.progress = (((manualIso - activeIsoMin).toFloat() /
             (activeIsoMax - activeIsoMin).coerceAtLeast(1)) * 100).toInt().coerceIn(0, 100)
         shutterSlider.progress = shutterProgressFromNs(manualShutterNs)
+    }
+
+    private fun applyManualFocusOnly() {
+        val activeCamera = camera ?: return
+        if (!manualFocusEnabled || minimumFocusDistance <= 0f) return
+        try {
+            val options = CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+                .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, manualFocusDiopters)
+                .build()
+            Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(options)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Manual focus unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun applyManualWhiteBalanceOnly() {
+        val activeCamera = camera ?: return
+        try {
+            val options = CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE,
+                    supportedAwbModes.getOrElse(awbModeIndex) { CaptureRequest.CONTROL_AWB_MODE_AUTO })
+                .build()
+            Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(options)
+        } catch (e: Exception) {
+            Toast.makeText(this, "White balance control unavailable: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun applyManualCapture() {
@@ -2198,7 +2230,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             else -> "AUTO"
         }
         whiteBalanceButton.text = "WHITE BALANCE: $label"
-        if (proModeEnabled) applyManualCapture()
+        if (proModeEnabled) {
+            if (manualExposureActive) applyManualCapture() else applyManualWhiteBalanceOnly()
+        }
     }
 
     private fun saveProPreset() {
@@ -2250,7 +2284,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             val ev = if (step != null && step.denominator != 0) exposureIndex * step.numerator.toFloat() / step.denominator.toFloat() else 0f
             exposureLabel.text = "EV  ${if (ev > 0) "+" else ""}%.1f".format(Locale.US, ev)
         }
-        if (proModeEnabled) applyManualCapture()
+        if (proModeEnabled) {
+            manualExposureActive = true
+            applyManualCapture()
+        }
         prefs.edit().putInt("manual_iso", manualIso).putLong("manual_shutter_ns", manualShutterNs)
             .putInt("manual_focus_progress", manualFocusProgress).putInt("manual_awb_mode", savedAwbMode).apply()
         Toast.makeText(this, "Pro preset loaded", Toast.LENGTH_SHORT).show()
@@ -2319,8 +2356,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun resetExposureCompensation() {
-        if (proModeEnabled) {
-            Toast.makeText(this, "EV compensation is unavailable in Manual Pro mode", Toast.LENGTH_SHORT).show()
+        if (manualExposureActive) {
+            Toast.makeText(this, "EV compensation is unavailable after manual ISO/shutter is engaged", Toast.LENGTH_SHORT).show()
             return
         }
         val activeCamera = camera ?: return
@@ -2332,8 +2369,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun changeExposure(delta: Int) {
-        if (proModeEnabled) {
-            Toast.makeText(this, "EV compensation is unavailable in Manual Pro mode", Toast.LENGTH_SHORT).show()
+        if (manualExposureActive) {
+            Toast.makeText(this, "EV compensation is unavailable after manual ISO/shutter is engaged", Toast.LENGTH_SHORT).show()
             return
         }
         val activeCamera = camera ?: return
@@ -2587,7 +2624,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             initializePhotoExtensions(provider)
             val activeResolutionSelector = currentResolutionSelector(videoMode)
             autoExposureSnapshotAvailable = false
-            manualExposureReapplyPending = proModeEnabled && !videoMode
+            manualExposureReapplyPending = proModeEnabled && manualExposureActive && !videoMode
             val previewBuilder = Preview.Builder().setResolutionSelector(activeResolutionSelector)
             Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                 object : CameraCaptureSession.CaptureCallback() {
@@ -2605,11 +2642,12 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                             latestAutoIso = iso
                             latestAutoShutterNs = shutterNs
                             autoExposureSnapshotAvailable = true
-                            if (manualExposureReapplyPending && proModeEnabled) {
+                            if (manualExposureReapplyPending && proModeEnabled && manualExposureActive) {
                                 manualExposureReapplyPending = false
                                 handler.post {
-                                    if (proModeEnabled && camera != null) {
-                                        seedManualExposureFromAuto()
+                                    if (proModeEnabled && manualExposureActive && camera != null) {
+                                        manualIso = manualIso.coerceIn(activeIsoMin, activeIsoMax)
+                                        manualShutterNs = manualShutterNs.coerceIn(activeShutterMinNs, activeShutterMaxNs)
                                         applyManualCapture()
                                     }
                                 }
