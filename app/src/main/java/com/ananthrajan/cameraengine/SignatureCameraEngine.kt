@@ -2,6 +2,7 @@ package com.ananthrajan.cameraengine
 
 import android.Manifest
 import android.hardware.camera2.CameraCharacteristics
+import android.view.OrientationEventListener
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CaptureRequest
@@ -94,6 +95,20 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         get() = if (themeStyle == CameraThemeStyle.IPHONE_PRO) 0x44FFD60A else 0x664C8DFF.toInt()
     private val cameraXController = CameraXController()
     private lateinit var previewView: PreviewView
+    private lateinit var cameraRoot: FrameLayout
+    private val uiOrientationListener by lazy {
+        object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN || !::cameraRoot.isInitialized) return
+                val rotation = when (orientation) {
+                    in 45..134 -> 90f
+                    in 225..314 -> -90f
+                    else -> 0f
+                }
+                applyCameraLabelRotation(cameraRoot, rotation)
+            }
+        }
+    }
     private lateinit var gridView: GridOverlay
     private lateinit var focusOverlay: FocusOverlay
     private lateinit var zoomLabel: TextView
@@ -321,6 +336,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
 
     private fun buildCameraUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+        cameraRoot = root
         previewView = PreviewView(this).apply {
             scaleType = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
                 PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
@@ -1238,6 +1254,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         // Recalculate after the dock has been measured so the floating lens rail
         // never overlaps the shutter controls or the expanded settings sheet.
         setContentView(root)
+        if (uiOrientationListener.canDetectOrientation()) uiOrientationListener.enable()
         panel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val quickParams = quickGrid.layoutParams as? FrameLayout.LayoutParams ?: return@addOnLayoutChangeListener
             val insets = root.rootWindowInsets
@@ -3426,7 +3443,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         updateScreenFlashPreview()
     }
 
-    override fun onStop() {
+${insert}    override fun onStop() {
+        if (::cameraRoot.isInitialized) uiOrientationListener.disable()
         hideScreenFlash()
         // Finalize any active recording when the camera screen leaves the foreground.
         if (recording != null) {
