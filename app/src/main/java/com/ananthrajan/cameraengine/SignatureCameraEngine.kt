@@ -505,9 +505,15 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             setTextColor(accentColor)
             gravity = Gravity.CENTER
             maxLines = 1
+            minWidth = dp(88)
+            includeFontPadding = false
+            ellipsize = null
             contentDescription = "Photo timer countdown setting"
         }
-        top.addView(timerStatusLabel)
+        top.addView(timerStatusLabel, LinearLayout.LayoutParams(-2, dp(26)).apply {
+            topMargin = dp(3)
+            bottomMargin = dp(3)
+        })
         rotatableCameraUiViews.add(timerStatusLabel)
         top.addView(audioLevelLabel)
         audioLevelLabel.visibility = View.GONE
@@ -526,6 +532,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         lensRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            clipChildren = false
+            clipToPadding = false
             setPadding(dp(6), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
@@ -540,6 +548,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             setMargins(dp(30), 0, dp(30), dp(238))
         })
+        // Rotate the complete, dynamically rebuilt zoom rail as one unit.
+        // This remains registered even when lens preset buttons are recreated.
+        rotatableCameraUiViews.add(lensRow)
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1011,6 +1022,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             setTextColor(0xFFD4DCE8.toInt())
             gravity = Gravity.CENTER
             maxLines = 1
+            minWidth = dp(36)
+            minHeight = dp(26)
+            includeFontPadding = false
+            ellipsize = null
         }
         mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
@@ -1108,13 +1123,12 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             clipChildren = false
             clipToPadding = false
             addView(flashButton, LinearLayout.LayoutParams(dp(38), dp(42)))
-            addView(flashStatusLabel, LinearLayout.LayoutParams(-2, dp(24)).apply {
-                marginStart = dp(6)
+            addView(flashStatusLabel, LinearLayout.LayoutParams(-2, dp(28)).apply {
+                marginStart = dp(8)
             })
         }
-        // Rotate the flash glyph and OFF/AUTO label together so they never
-        // collide or drift apart when the device is tilted.
-        rotatableCameraUiViews.add(flashControl)
+        // The full top action rail rotates as a single group so flash status,
+        // 4:3 and mode controls always share the same angle and spacing.
         topHeader.clipChildren = false
         topHeader.clipToPadding = false
         topHeader.addView(flashControl, LinearLayout.LayoutParams(-2, dp(42)))
@@ -1128,13 +1142,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }.apply { textSize = 10f; setPadding(dp(3), 0, dp(3), 0) }
         ratioQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         ratioQuickButton.elevation = 0f
-        rotatableCameraUiViews.add(ratioQuickButton)
         topHeader.addView(ratioQuickButton, LinearLayout.LayoutParams(dp(54), dp(40)).apply { leftMargin = dp(3) })
         modeQuickButton = smallButton("PHOTO") { if (videoMode) cycleVideoQuality() else cyclePhotoExtension() }
             .apply { textSize = 9f; setPadding(dp(2), 0, dp(2), 0) }
         modeQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         modeQuickButton.elevation = 0f
-        rotatableCameraUiViews.add(modeQuickButton)
         topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
         if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
             // iOS 27 places the six-dot controls entry at the lower-right of the shutter dock.
@@ -1163,6 +1175,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 leftMargin = dp(3)
             })
         }
+        rotatableCameraUiViews.add(topHeader)
 
         // Compact two-row quick panel: one tap to the most-used camera controls.
         val quickGrid = android.widget.GridLayout(this).apply {
@@ -1681,7 +1694,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
             button.isEnabled = zoomState == null || (ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio)
             button.visibility = if (button.isEnabled) View.VISIBLE else View.GONE
-            rotatableCameraUiViews.add(button)
             lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(3), 0, dp(3), 0)
             })
