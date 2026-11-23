@@ -151,6 +151,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private lateinit var flashButton: Button
     private lateinit var flashStatusLabel: TextView
     private lateinit var timerStatusLabel: TextView
+    private lateinit var timerTitleLabel: TextView
     private lateinit var topChrome: LinearLayout
     private lateinit var cameraDockPanel: LinearLayout
     private lateinit var screenFlashOverlay: View
@@ -499,21 +500,43 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             contentDescription = "Video recording duration"
         }
         top.addView(recordingTimer)
-        timerStatusLabel = TextView(this).apply {
+        timerTitleLabel = TextView(this).apply {
+            text = "TIMER"
             textSize = 10f
             letterSpacing = 0.08f
             setTextColor(accentColor)
             gravity = Gravity.CENTER
             maxLines = 1
-            minWidth = dp(88)
             includeFontPadding = false
-            ellipsize = null
+            contentDescription = "Photo timer"
+        }
+        timerStatusLabel = TextView(this).apply {
+            text = "OFF"
+            textSize = 10f
+            letterSpacing = 0.04f
+            setTextColor(accentColor)
+            gravity = Gravity.CENTER
+            maxLines = 1
+            minWidth = dp(28)
+            includeFontPadding = false
             contentDescription = "Photo timer countdown setting"
         }
-        top.addView(timerStatusLabel, LinearLayout.LayoutParams(-2, dp(26)).apply {
-            topMargin = dp(3)
-            bottomMargin = dp(3)
+        val timerStatusGroup = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            clipChildren = false
+            clipToPadding = false
+            addView(timerTitleLabel, LinearLayout.LayoutParams(-2, dp(26)))
+            addView(timerStatusLabel, LinearLayout.LayoutParams(-2, dp(26)).apply {
+                marginStart = dp(8)
+            })
+        }
+        top.addView(timerStatusGroup, LinearLayout.LayoutParams(-2, dp(32)).apply {
+            topMargin = dp(2)
+            bottomMargin = dp(2)
         })
+        // Rotate only text; keep the horizontal parent and its layout bounds fixed.
+        rotatableCameraUiViews.add(timerTitleLabel)
         rotatableCameraUiViews.add(timerStatusLabel)
         top.addView(audioLevelLabel)
         audioLevelLabel.visibility = View.GONE
@@ -532,8 +555,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         lensRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            clipChildren = false
-            clipToPadding = false
             setPadding(dp(6), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
@@ -543,14 +564,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
         // Lens selector is floated above the bottom camera dock, like a native camera app.
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-        // Keep the lens rail floating above the dock in every orientation.
-        // Its measured position is recalculated from the dock height below.
+        // Keep the horizontal zoom rail and its touch bounds fixed in every orientation.
         root.addView(lensRow, FrameLayout.LayoutParams(-1, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             setMargins(dp(30), 0, dp(30), dp(238))
         })
-        // Rotate the complete, dynamically rebuilt zoom rail as one unit.
-        // This remains registered even when lens preset buttons are recreated.
-        rotatableCameraUiViews.add(lensRow)
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1022,10 +1039,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             setTextColor(0xFFD4DCE8.toInt())
             gravity = Gravity.CENTER
             maxLines = 1
-            minWidth = dp(36)
-            minHeight = dp(26)
-            includeFontPadding = false
-            ellipsize = null
         }
         mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
@@ -1123,12 +1136,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             clipChildren = false
             clipToPadding = false
             addView(flashButton, LinearLayout.LayoutParams(dp(38), dp(42)))
-            addView(flashStatusLabel, LinearLayout.LayoutParams(-2, dp(28)).apply {
-                marginStart = dp(8)
+            addView(flashStatusLabel, LinearLayout.LayoutParams(-2, dp(24)).apply {
+                marginStart = dp(6)
             })
         }
-        // The full top action rail rotates as a single group so flash status,
-        // 4:3 and mode controls always share the same angle and spacing.
+        // Rotate the flash glyph and OFF/AUTO label together so they never
+        // collide or drift apart when the device is tilted.
+        rotatableCameraUiViews.add(flashControl)
         topHeader.clipChildren = false
         topHeader.clipToPadding = false
         topHeader.addView(flashControl, LinearLayout.LayoutParams(-2, dp(42)))
@@ -1142,11 +1156,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }.apply { textSize = 10f; setPadding(dp(3), 0, dp(3), 0) }
         ratioQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         ratioQuickButton.elevation = 0f
+        rotatableCameraUiViews.add(ratioQuickButton)
         topHeader.addView(ratioQuickButton, LinearLayout.LayoutParams(dp(54), dp(40)).apply { leftMargin = dp(3) })
         modeQuickButton = smallButton("PHOTO") { if (videoMode) cycleVideoQuality() else cyclePhotoExtension() }
             .apply { textSize = 9f; setPadding(dp(2), 0, dp(2), 0) }
         modeQuickButton.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         modeQuickButton.elevation = 0f
+        rotatableCameraUiViews.add(modeQuickButton)
         topHeader.addView(modeQuickButton, LinearLayout.LayoutParams(dp(62), dp(40)).apply { leftMargin = dp(3) })
         if (themeStyle == CameraThemeStyle.IPHONE_PRO) {
             // iOS 27 places the six-dot controls entry at the lower-right of the shutter dock.
@@ -1175,7 +1191,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 leftMargin = dp(3)
             })
         }
-        rotatableCameraUiViews.add(topHeader)
 
         // Compact two-row quick panel: one tap to the most-used camera controls.
         val quickGrid = android.widget.GridLayout(this).apply {
@@ -1591,7 +1606,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
 
     private fun updateTimerUi() {
         if (!::timerStatusLabel.isInitialized) return
-        timerStatusLabel.text = if (timerSeconds == 0) "TIMER OFF" else "TIMER ${timerSeconds}s"
+        timerTitleLabel.visibility = if (videoMode) View.GONE else View.VISIBLE
+        timerStatusLabel.text = if (timerSeconds == 0) "OFF" else "${timerSeconds}s"
         timerStatusLabel.visibility = if (videoMode) View.GONE else View.VISIBLE
         timerStatusLabel.contentDescription = if (timerSeconds == 0) "Photo timer off" else "Photo timer set to ${timerSeconds} seconds"
     }
@@ -1664,22 +1680,27 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }.ifEmpty { listOf(1.0f) }
         presets.forEach { ratio ->
             val label = "%.1fx".format(Locale.US, ratio)
-            val button = Button(this).apply {
+            val zoomText = TextView(this).apply {
                 text = label
                 textSize = 11f
                 typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
-                isAllCaps = false
+                gravity = Gravity.CENTER
+                maxLines = 1
+                includeFontPadding = false
                 setTextColor(if (ratio == 1f) accentColor else android.graphics.Color.WHITE)
+                contentDescription = "Zoom label $label"
+            }
+            val zoomControl = FrameLayout(this).apply {
                 tag = ratio
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Set camera zoom to $label"
                 background = GradientDrawable().apply {
                     cornerRadius = dp(22).toFloat()
                     setColor(if (ratio == 1f) 0xFF303034.toInt() else 0xFF1C1C1E.toInt())
                     setStroke(dp(1), if (ratio == 1f) accentBorderColor else 0xFF343438.toInt())
                 }
-                minWidth = 0
-                minHeight = dp(48)
-                setPadding(dp(10), 0, dp(10), 0)
-                contentDescription = "Set camera zoom to $label"
+                addView(zoomText, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
                 setOnClickListener {
                     val state = camera?.cameraInfo?.zoomState?.value ?: return@setOnClickListener
                     if (ratio < state.minZoomRatio || ratio > state.maxZoomRatio) {
@@ -1692,9 +1713,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
                 }
             }
-            button.isEnabled = zoomState == null || (ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio)
-            button.visibility = if (button.isEnabled) View.VISIBLE else View.GONE
-            lensRow.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            zoomControl.isEnabled = zoomState == null || (ratio >= zoomState.minZoomRatio && ratio <= zoomState.maxZoomRatio)
+            zoomControl.visibility = if (zoomControl.isEnabled) View.VISIBLE else View.GONE
+            // Rotate only the multiplier text; the pill and horizontal rail stay fixed.
+            rotatableCameraUiViews.add(zoomText)
+            lensRow.addView(zoomControl, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(3), 0, dp(3), 0)
             })
         }
@@ -1710,14 +1733,14 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private fun updateLensButtonAvailability(minZoom: Float, maxZoom: Float) {
         if (!::lensRow.isInitialized) return
         for (i in 0 until lensRow.childCount) {
-            val button = lensRow.getChildAt(i) as? Button ?: continue
+            val button = lensRow.getChildAt(i) as? FrameLayout ?: continue
             val ratio = button.tag as? Float ?: continue
             val available = cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA &&
                 ratio >= minZoom && ratio <= maxZoom
             button.isEnabled = available
             button.visibility = if (available) View.VISIBLE else View.GONE
             button.alpha = 1f
-            val label = button.text.toString().replace("×", "x")
+            val label = (button.getChildAt(0) as? TextView)?.text?.toString()?.replace("×", "x") ?: "${ratio}x"
             button.contentDescription = if (available) {
                 "Switch rear camera to $label view"
             } else {
@@ -1728,10 +1751,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
 
     private fun updateLensSelection(zoomRatio: Float) {
         if (!::lensRow.isInitialized) return
-        var nearest: Button? = null
+        var nearest: FrameLayout? = null
         var nearestDistance = Float.MAX_VALUE
         for (i in 0 until lensRow.childCount) {
-            val button = lensRow.getChildAt(i) as? Button ?: continue
+            val button = lensRow.getChildAt(i) as? FrameLayout ?: continue
             if (button.visibility != View.VISIBLE) continue
             val preset = button.tag as? Float ?: continue
             val distance = kotlin.math.abs(kotlin.math.ln(zoomRatio.coerceAtLeast(0.01f) / preset))
@@ -1741,7 +1764,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
         }
         for (i in 0 until lensRow.childCount) {
-            val button = lensRow.getChildAt(i) as? Button ?: continue
+            val button = lensRow.getChildAt(i) as? FrameLayout ?: continue
             if (button.visibility != View.VISIBLE) continue
             val selected = button === nearest && nearestDistance < 0.22f
             button.background = GradientDrawable().apply {
@@ -1749,7 +1772,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 setColor(if (selected) 0xFFF2F2F7.toInt() else 0xFF1C1C1E.toInt())
                 setStroke(dp(1), if (selected) 0xFFF2F2F7.toInt() else 0xFF343438.toInt())
             }
-            button.setTextColor(if (selected) 0xFF111114.toInt() else android.graphics.Color.WHITE)
+            (button.getChildAt(0) as? TextView)?.setTextColor(
+                if (selected) 0xFF111114.toInt() else android.graphics.Color.WHITE
+            )
             button.isSelected = selected
         }
     }
@@ -2760,13 +2785,11 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     val photoResolution = activeResolutionSelector
                     val imageBuilder = ImageCapture.Builder()
                         .setResolutionSelector(photoResolution)
-                        // MAXIMIZE_QUALITY lets CameraX use ZSL when the selected
-                        // camera/HAL supports it; otherwise CameraX uses its normal still path.
+                        // MAXIMIZE_QUALITY lets CameraX use ZSL when the selected camera/HAL supports it.
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
-                    // activeSelector resolves to the exact front or rear Camera2 ID,
-                    // so the advertised noise-reduction capability is applied per lens.
+                    // Resolve capabilities against the exact selected front or rear camera.
                     applyStillImageQualityOptions(imageBuilder, provider, activeSelector)
                     applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
                     val stillUseCase = imageBuilder.build()
