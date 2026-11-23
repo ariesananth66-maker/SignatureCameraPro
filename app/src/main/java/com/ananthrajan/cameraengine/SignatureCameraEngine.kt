@@ -972,7 +972,6 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             }
         }
         rotatableCameraUiViews.add(flashButton)
-        rotatableCameraUiViews.add(galleryThumbnailView)
         rotatableCameraUiViews.add(flip)
         fun sideControl(button: View, caption: String, status: Boolean = false): LinearLayout {
             val column = LinearLayout(this).apply {
@@ -1027,6 +1026,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             isFocusable = true
             setOnClickListener { openPhotoGalleryDirectly() }
         }
+        rotatableCameraUiViews.add(galleryThumbnailView)
         // Three equally weighted dock positions keep both side controls balanced
         // around a fixed 76dp shutter. Side icons share the shutter's vertical axis.
         mainRow.setPadding(dp(10), 0, dp(10), 0)
