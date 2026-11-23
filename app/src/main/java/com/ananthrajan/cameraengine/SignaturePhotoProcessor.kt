@@ -20,21 +20,26 @@ internal object SignaturePhotoProcessor {
      * Luma is carried through unchanged; only Cb/Cr are spatially averaged.
      */
     fun applyHighIsoFrontChromaDenoise(source: Bitmap): Bitmap {
-        val width = source.width
-        val height = source.height
-        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val rowPixels = IntArray(width * 3)
+        val working = if (source.isMutable) source else source.copy(Bitmap.Config.ARGB_8888, true) ?: return source
+        val width = working.width
+        val height = working.height
+        val previousRow = IntArray(width)
+        val currentRow = IntArray(width)
+        val nextRow = IntArray(width)
         val outputRow = IntArray(width)
 
-        for (y in 0 until height) {
-            val top = (y - 1).coerceAtLeast(0)
-            val bottom = (y + 1).coerceAtMost(height - 1)
-            val rowCount = bottom - top + 1
-            source.getPixels(rowPixels, 0, width, 0, top, width, rowCount)
-            val centerRow = y - top
+        working.getPixels(currentRow, 0, width, 0, 0, width, 1)
+        currentRow.copyInto(previousRow)
+        if (height > 1) working.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        else currentRow.copyInto(nextRow)
 
+        var previous = previousRow
+        var current = currentRow
+        var next = nextRow
+
+        for (y in 0 until height) {
             for (x in 0 until width) {
-                val center = rowPixels[centerRow * width + x]
+                val center = current[x]
                 val alpha = center ushr 24
                 val r0 = ((center ushr 16) and 0xFF).toFloat()
                 val g0 = ((center ushr 8) and 0xFF).toFloat()
@@ -48,11 +53,15 @@ internal object SignaturePhotoProcessor {
 
                 for (dy in -1..1) {
                     val ny = (y + dy).coerceIn(0, height - 1)
-                    val row = ny - top
+                    val neighborRow = when (ny) {
+                        y - 1 -> previous
+                        y -> current
+                        else -> next
+                    }
                     for (dx in -1..1) {
                         if (dx == 0 && dy == 0) continue
                         val nx = (x + dx).coerceIn(0, width - 1)
-                        val pixel = rowPixels[row * width + nx]
+                        val pixel = neighborRow[nx]
                         val nr = ((pixel ushr 16) and 0xFF).toFloat()
                         val ng = ((pixel ushr 8) and 0xFF).toFloat()
                         val nb = (pixel and 0xFF).toFloat()
@@ -76,9 +85,16 @@ internal object SignaturePhotoProcessor {
                 val outB = (luma + 1.772f * cb).roundToInt().coerceIn(0, 255)
                 outputRow[x] = (alpha shl 24) or (outR shl 16) or (outG shl 8) or outB
             }
-            output.setPixels(outputRow, 0, width, 0, y, width, 1)
+            // Previous/current/next buffers preserve the untouched source rows
+            // while the processed row is written back in place.
+            working.setPixels(outputRow, 0, width, 0, y, width, 1)
+            val recycledBuffer = previous
+            previous = current
+            current = next
+            next = recycledBuffer
+            if (y + 2 < height) working.getPixels(next, 0, width, 0, y + 2, width, 1)
         }
-        return output
+        return working
     }
 
     fun applyNaturalHighlightRollOff(source: Bitmap): Bitmap {
