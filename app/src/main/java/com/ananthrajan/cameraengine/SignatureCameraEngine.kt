@@ -96,16 +96,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private val cameraXController = CameraXController()
     private lateinit var previewView: PreviewView
     private lateinit var cameraRoot: FrameLayout
+    private val rotatableCameraUiViews = mutableListOf<View>()
+    private var lastAppliedCameraUiAngle = 0f
     private val uiOrientationListener by lazy {
         object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN || !::cameraRoot.isInitialized) return
-                val rotation = when (orientation) {
-                    in 45..134 -> 90f
-                    in 225..314 -> -90f
-                    else -> 0f
-                }
-                applyCameraLabelRotation(cameraRoot, rotation)
+                updateWhitelistedCameraUiRotation(orientation)
             }
         }
     }
@@ -337,6 +334,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private fun buildCameraUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         cameraRoot = root
+        rotatableCameraUiViews.clear()
+        lastAppliedCameraUiAngle = 0f
         previewView = PreviewView(this).apply {
             scaleType = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
                 PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
@@ -502,6 +501,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             contentDescription = "Photo timer countdown setting"
         }
         top.addView(timerStatusLabel)
+        rotatableCameraUiViews.add(timerStatusLabel)
         top.addView(audioLevelLabel)
         audioLevelLabel.visibility = View.GONE
         audioLevelBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -989,6 +989,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 1
             }
+            rotatableCameraUiViews.add(label)
             column.addView(label, LinearLayout.LayoutParams(-1, dp(18)))
             return column
         }
@@ -999,6 +1000,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             maxLines = 1
         }
+        rotatableCameraUiViews.add(flashStatusLabel)
         mainControlsRow = mainRow
         mainRow.setPadding(dp(10), dp(8), dp(10), dp(4))
         mainRow.gravity = Gravity.CENTER
@@ -1174,15 +1176,18 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     setStroke(dp(1), 0x55777777)
                 }
             }
+            rotatableCameraUiViews.add(icon)
             tile.addView(icon, LinearLayout.LayoutParams(dp(42), dp(42)))
-            tile.addView(TextView(this).apply {
+            val tileCaption = TextView(this).apply {
                 text = caption
                 textSize = 9f
                 maxLines = 1
                 gravity = Gravity.CENTER
                 setTextColor(0xFFE5E5EA.toInt())
                 setPadding(0, dp(3), 0, 0)
-            })
+            }
+            rotatableCameraUiViews.add(tileCaption)
+            tile.addView(tileCaption)
             quickGrid.addView(tile, android.widget.GridLayout.LayoutParams(
                 android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f),
                 android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
@@ -3442,7 +3447,23 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         updateScreenFlashPreview()
     }
 
-${insert}    override fun onResume() {
+    private fun updateWhitelistedCameraUiRotation(orientation: Int) {
+        if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return
+        val targetAngle = when {
+            orientation in 60..120 -> 270f
+            orientation in 240..300 -> 90f
+            orientation in 330..359 || orientation in 0..30 -> 0f
+            else -> lastAppliedCameraUiAngle
+        }
+        if (targetAngle == lastAppliedCameraUiAngle) return
+        lastAppliedCameraUiAngle = targetAngle
+        rotatableCameraUiViews.forEach { view ->
+            view.animate().cancel()
+            view.animate().rotation(targetAngle).setDuration(160L).start()
+        }
+    }
+
+    override fun onResume() {
         super.onResume()
         if (::cameraRoot.isInitialized && uiOrientationListener.canDetectOrientation()) {
             uiOrientationListener.enable()
