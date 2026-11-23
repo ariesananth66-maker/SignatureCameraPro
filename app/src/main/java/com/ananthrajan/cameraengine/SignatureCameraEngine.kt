@@ -1775,8 +1775,21 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
 
     private fun focusAt(x: Float, y: Float) {
         val activeCamera = camera ?: return
+        // Manual Pro focus disables AF in the Camera2 request. Do not launch a
+        // metering action that the active manual-focus configuration cannot honor.
+        if (proModeEnabled && manualFocusEnabled) {
+            Toast.makeText(this, "Tap focus is unavailable while manual focus is active", Toast.LENGTH_SHORT).show()
+            return
+        }
         val point: MeteringPoint = previewView.meteringPointFactory.createPoint(x, y)
-        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+        // In Auto mode meter both AF and AE. Manual Pro exposure has AE disabled,
+        // so meter AF only and leave the selected ISO/shutter values untouched.
+        val meteringFlags = if (proModeEnabled) {
+            FocusMeteringAction.FLAG_AF
+        } else {
+            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+        }
+        val action = FocusMeteringAction.Builder(point, meteringFlags)
             .setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         previewView.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
         focusOverlay.showAt(x, y)
@@ -1814,6 +1827,8 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         try {
             val activeCamera = camera ?: return
             Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
+            // Restore the user's Auto-mode EV after removing manual AE-off options.
+            cameraXController.setExposureCompensation(exposureIndex)
             manualFocusEnabled = false
             manualFocusDiopters = minimumFocusDistance * (manualFocusProgress / 1000f)
             focusSlider.progress = manualFocusProgress
@@ -2263,6 +2278,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun resetExposureCompensation() {
+        if (proModeEnabled) {
+            Toast.makeText(this, "EV compensation is unavailable in Manual Pro mode", Toast.LENGTH_SHORT).show()
+            return
+        }
         val activeCamera = camera ?: return
         val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
         exposureIndex = 0.coerceIn(range.lower, range.upper)
@@ -2272,6 +2291,10 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun changeExposure(delta: Int) {
+        if (proModeEnabled) {
+            Toast.makeText(this, "EV compensation is unavailable in Manual Pro mode", Toast.LENGTH_SHORT).show()
+            return
+        }
         val activeCamera = camera ?: return
         val range = activeCamera.cameraInfo.exposureState.exposureCompensationRange
         exposureIndex = (exposureIndex + delta).coerceIn(range.lower, range.upper)
