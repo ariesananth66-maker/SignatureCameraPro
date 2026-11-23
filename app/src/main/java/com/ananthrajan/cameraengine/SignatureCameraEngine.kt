@@ -655,11 +655,21 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     manualIso = (activeIsoMin + (activeIsoMax - activeIsoMin) * progress / 100f).toInt().coerceIn(activeIsoMin, activeIsoMax)
                     isoValue.text = "ISO $manualIso"
                     if (fromUser) {
-                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_iso", manualIso).apply()
-                        if (proModeEnabled) {
+                        if (proModeEnabled && !manualExposureActive) {
+                            if (!autoExposureSnapshotAvailable) {
+                                Toast.makeText(this@BaseSignatureCameraActivity, "Camera is still metering. Try again in a moment.", Toast.LENGTH_SHORT).show()
+                                return
+                            }
+                            val requestedProgress = progress
+                            seedManualExposureFromAuto()
+                            manualIso = (activeIsoMin + (activeIsoMax - activeIsoMin) * requestedProgress / 100f)
+                                .toInt().coerceIn(activeIsoMin, activeIsoMax)
+                            isoSlider.progress = requestedProgress
+                            isoValue.text = "ISO $manualIso"
                             manualExposureActive = true
-                            applyManualCapture()
                         }
+                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putInt("manual_iso", manualIso).apply()
+                        if (proModeEnabled && manualExposureActive) applyManualCapture()
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -674,11 +684,20 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     manualShutterNs = shutterNsFromProgress(progress)
                     shutterValue.text = "SHUTTER ${formatShutter(manualShutterNs)}"
                     if (fromUser) {
-                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putLong("manual_shutter_ns", manualShutterNs).apply()
-                        if (proModeEnabled) {
+                        if (proModeEnabled && !manualExposureActive) {
+                            if (!autoExposureSnapshotAvailable) {
+                                Toast.makeText(this@BaseSignatureCameraActivity, "Camera is still metering. Try again in a moment.", Toast.LENGTH_SHORT).show()
+                                return
+                            }
+                            val requestedProgress = progress
+                            seedManualExposureFromAuto()
+                            manualShutterNs = shutterNsFromProgress(requestedProgress)
+                            shutterSlider.progress = requestedProgress
+                            shutterValue.text = "SHUTTER ${formatShutter(manualShutterNs)}"
                             manualExposureActive = true
-                            applyManualCapture()
                         }
+                        getSharedPreferences("signature_camera_settings", MODE_PRIVATE).edit().putLong("manual_shutter_ns", manualShutterNs).apply()
+                        if (proModeEnabled && manualExposureActive) applyManualCapture()
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
