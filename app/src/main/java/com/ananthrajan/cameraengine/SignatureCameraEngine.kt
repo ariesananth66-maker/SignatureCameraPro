@@ -58,6 +58,7 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import android.util.Range
+import android.util.Log
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.AspectRatio
@@ -2566,6 +2567,58 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
     }
 
+    private fun attachStillCaptureDiagnostics(
+        builder: ImageCapture.Builder,
+        provider: ProcessCameraProvider,
+        selector: CameraSelector
+    ) {
+        try {
+            val cameraId = Camera2CameraInfo.from(provider.getCameraInfo(selector)).cameraId
+            val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+            val characteristics = manager.getCameraCharacteristics(cameraId)
+            val facing = when (characteristics.get(CameraCharacteristics.LENS_FACING)) {
+                CameraCharacteristics.LENS_FACING_FRONT -> "FRONT"
+                CameraCharacteristics.LENS_FACING_BACK -> "REAR"
+                CameraCharacteristics.LENS_FACING_EXTERNAL -> "EXTERNAL"
+                else -> "UNKNOWN"
+            }
+            Camera2Interop.Extender(builder).setSessionCaptureCallback(
+                object : CameraCaptureSession.CaptureCallback() {
+                    override fun onCaptureCompleted(
+                        session: CameraCaptureSession,
+                        request: CaptureRequest,
+                        result: TotalCaptureResult
+                    ) {
+                        if (request.template != CameraDevice.TEMPLATE_STILL_CAPTURE) return
+                        val iso = result.get(CaptureResult.SENSOR_SENSITIVITY)
+                        val exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME)
+                        val resultNr = result.get(CaptureResult.NOISE_REDUCTION_MODE)
+                        val requestNr = request.get(CaptureRequest.NOISE_REDUCTION_MODE)
+                        val exposureMs = exposureNs?.let { it / 1_000_000.0 }
+                        Log.i(
+                            "SignatureCaptureDiag",
+                            "STILL_CAPTURE facing=$facing cameraId=$cameraId frame=${result.frameNumber} " +
+                                "ISO=${iso ?: "unavailable"} exposureNs=${exposureNs ?: "unavailable"} " +
+                                "exposureMs=${exposureMs?.let { "%.3f".format(Locale.US, it) } ?: "unavailable"} " +
+                                "NR_requested=${requestNr?.let { nrModeName(it) } ?: "not-set"} " +
+                                "NR_applied=${resultNr?.let { nrModeName(it) } ?: "unavailable"}"
+                        )
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            Log.w("SignatureCaptureDiag", "Unable to attach still capture diagnostics: ${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
+    private fun nrModeName(mode: Int): String = when (mode) {
+        CaptureRequest.NOISE_REDUCTION_MODE_OFF -> "OFF"
+        CaptureRequest.NOISE_REDUCTION_MODE_FAST -> "FAST"
+        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY -> "HIGH_QUALITY"
+        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL -> "MINIMAL"
+        CaptureRequest.NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG -> "ZERO_SHUTTER_LAG"
+        else -> "UNKNOWN($mode)"
+    }
     // Ask the device camera HAL for its best supported still-image noise/detail
     // processing. Unsupported modes are never forced, and OEM extensions keep
     // ownership of their own Night/HDR processing pipeline.
@@ -2791,6 +2844,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                         .setFlashMode(photoFlashMode)
                     // Resolve capabilities against the exact selected front or rear camera.
                     applyStillImageQualityOptions(imageBuilder, provider, activeSelector)
+                    attachStillCaptureDiagnostics(imageBuilder, provider, activeSelector)
                     applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
                     val stillUseCase = imageBuilder.build()
                     imageCapture = stillUseCase
