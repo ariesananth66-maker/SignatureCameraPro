@@ -2562,12 +2562,20 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             val aberrationModes = characteristics.get(CameraCharacteristics.COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES)
                 ?: intArrayOf()
             val extender = Camera2Interop.Extender(builder)
-            // Request only image-cleanup modes that this camera HAL explicitly advertises.
+            // Prefer the HAL's still-image noise reduction on both rear and front cameras.
+            // Use FAST only when HIGH_QUALITY is not advertised; never force an unsupported mode.
             // Keep edge enhancement at the OEM default to avoid sharpening noise and halos.
-            if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
+            val stillNoiseMode = when {
+                noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY) ->
+                    CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_FAST) ->
+                    CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                else -> null
+            }
+            if (stillNoiseMode != null) {
                 extender.setCaptureRequestOption(
                     CaptureRequest.NOISE_REDUCTION_MODE,
-                    CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                    stillNoiseMode
                 )
             }
             if (hotPixelModes.contains(CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)) {
@@ -2752,9 +2760,13 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                     val photoResolution = activeResolutionSelector
                     val imageBuilder = ImageCapture.Builder()
                         .setResolutionSelector(photoResolution)
+                        // MAXIMIZE_QUALITY lets CameraX use ZSL when the selected
+                        // camera/HAL supports it; otherwise CameraX uses its normal still path.
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
+                    // activeSelector resolves to the exact front or rear Camera2 ID,
+                    // so the advertised noise-reduction capability is applied per lens.
                     applyStillImageQualityOptions(imageBuilder, provider, activeSelector)
                     applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
                     val stillUseCase = imageBuilder.build()
