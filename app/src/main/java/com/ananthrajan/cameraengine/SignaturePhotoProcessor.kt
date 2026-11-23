@@ -15,6 +15,72 @@ internal object SignaturePhotoProcessor {
     private const val MAX_HIGHLIGHT_COMPRESSION = 0.08f
     private const val ROW_CHUNK = 48
 
+    /**
+     * Mild edge-aware chroma cleanup for high-ISO front STANDARD_SDR JPEGs.
+     * Luma is carried through unchanged; only Cb/Cr are spatially averaged.
+     */
+    fun applyHighIsoFrontChromaDenoise(source: Bitmap): Bitmap {
+        val width = source.width
+        val height = source.height
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val rowPixels = IntArray(width * 3)
+        val outputRow = IntArray(width)
+
+        for (y in 0 until height) {
+            val top = (y - 1).coerceAtLeast(0)
+            val bottom = (y + 1).coerceAtMost(height - 1)
+            val rowCount = bottom - top + 1
+            source.getPixels(rowPixels, 0, width, 0, top, width, rowCount)
+            val centerRow = y - top
+
+            for (x in 0 until width) {
+                val center = rowPixels[centerRow * width + x]
+                val alpha = center ushr 24
+                val r0 = ((center ushr 16) and 0xFF).toFloat()
+                val g0 = ((center ushr 8) and 0xFF).toFloat()
+                val b0 = (center and 0xFF).toFloat()
+                val luma = 0.299f * r0 + 0.587f * g0 + 0.114f * b0
+                val cb0 = 128f - 0.168736f * r0 - 0.331264f * g0 + 0.5f * b0
+                val cr0 = 128f + 0.5f * r0 - 0.418688f * g0 - 0.081312f * b0
+                var cbSum = cb0
+                var crSum = cr0
+                var weightSum = 1f
+
+                for (dy in -1..1) {
+                    val ny = (y + dy).coerceIn(0, height - 1)
+                    val row = ny - top
+                    for (dx in -1..1) {
+                        if (dx == 0 && dy == 0) continue
+                        val nx = (x + dx).coerceIn(0, width - 1)
+                        val pixel = rowPixels[row * width + nx]
+                        val nr = ((pixel ushr 16) and 0xFF).toFloat()
+                        val ng = ((pixel ushr 8) and 0xFF).toFloat()
+                        val nb = (pixel and 0xFF).toFloat()
+                        val neighborY = 0.299f * nr + 0.587f * ng + 0.114f * nb
+                        val neighborCb = 128f - 0.168736f * nr - 0.331264f * ng + 0.5f * nb
+                        val neighborCr = 128f + 0.5f * nr - 0.418688f * ng - 0.081312f * nb
+                        val spatial = if (dx == 0 || dy == 0) 0.55f else 0.35f
+                        val lumaEdge = kotlin.math.abs(neighborY - luma)
+                        val chromaDelta = kotlin.math.abs(neighborCb - cb0) + kotlin.math.abs(neighborCr - cr0)
+                        val weight = spatial / (1f + lumaEdge * 0.04f + chromaDelta * 0.012f)
+                        cbSum += neighborCb * weight
+                        crSum += neighborCr * weight
+                        weightSum += weight
+                    }
+                }
+
+                val cb = cbSum / weightSum - 128f
+                val cr = crSum / weightSum - 128f
+                val outR = (luma + 1.402f * cr).roundToInt().coerceIn(0, 255)
+                val outG = (luma - 0.344136f * cb - 0.714136f * cr).roundToInt().coerceIn(0, 255)
+                val outB = (luma + 1.772f * cb).roundToInt().coerceIn(0, 255)
+                outputRow[x] = (alpha shl 24) or (outR shl 16) or (outG shl 8) or outB
+            }
+            output.setPixels(outputRow, 0, width, 0, y, width, 1)
+        }
+        return output
+    }
+
     fun applyNaturalHighlightRollOff(source: Bitmap): Bitmap {
         val output = if (source.isMutable && source.config == Bitmap.Config.ARGB_8888) {
             source
