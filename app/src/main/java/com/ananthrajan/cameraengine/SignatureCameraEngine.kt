@@ -212,6 +212,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private val photoProcessingExecutor = Executors.newSingleThreadExecutor { task ->
         Thread(task, "SignaturePhotoProcessing").apply { isDaemon = true }
     }
+    @Volatile private var frontEffectResultLogged = false
     private var exposureIndex = 0
     @Volatile private var latestAutoIso = 400
     @Volatile private var latestAutoShutterNs = 10_000_000L
@@ -2636,6 +2637,23 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         CaptureRequest.NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG -> "ZERO_SHUTTER_LAG"
         else -> "UNKNOWN($mode)"
     }
+    // Explicitly request the standard Camera2 no-effect mode for the front camera
+    // when the HAL advertises it. This is not a vendor beauty-key override, but it
+    // prevents a standard Camera2 color effect from being silently selected.
+    private fun isFrontEffectOffSupported(provider: ProcessCameraProvider, selector: CameraSelector): Boolean {
+        if (selector != CameraSelector.DEFAULT_FRONT_CAMERA || selectedPhotoExtension != null) return false
+        return try {
+            val manager = getSystemService(CAMERA_SERVICE) as CameraManager
+            val cameraId = Camera2CameraInfo.from(provider.getCameraInfo(selector)).cameraId
+            if (!manager.cameraIdList.contains(cameraId)) return false
+            val effects = manager.getCameraCharacteristics(cameraId)
+                .get(CameraCharacteristics.CONTROL_AVAILABLE_EFFECTS) ?: intArrayOf()
+            effects.contains(CaptureRequest.CONTROL_EFFECT_MODE_OFF)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // Ask the device camera HAL for its best supported still-image noise/detail
     // processing. Unsupported modes are never forced, and OEM extensions keep
     // ownership of their own Night/HDR processing pipeline.
@@ -2799,14 +2817,35 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
             val activeResolutionSelector = currentResolutionSelector(videoMode)
             autoExposureSnapshotAvailable = false
             manualExposureReapplyPending = proModeEnabled && manualExposureActive && !videoMode
+            val frontEffectOffSupported = isFrontEffectOffSupported(provider, cameraSelector)
+            frontEffectResultLogged = false
+            Log.i(
+                "SignatureRenderPolicy",
+                "FRONT_EFFECT_OFF supported=$frontEffectOffSupported requested=$frontEffectOffSupported extension=${selectedPhotoExtension ?: "OFF"}"
+            )
             val previewBuilder = Preview.Builder().setResolutionSelector(activeResolutionSelector)
-            Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
+            val previewExtender = Camera2Interop.Extender(previewBuilder)
+            if (frontEffectOffSupported) {
+                previewExtender.setCaptureRequestOption(
+                    CaptureRequest.CONTROL_EFFECT_MODE,
+                    CaptureRequest.CONTROL_EFFECT_MODE_OFF
+                )
+            }
+            previewExtender.setSessionCaptureCallback(
                 object : CameraCaptureSession.CaptureCallback() {
                     override fun onCaptureCompleted(
                         session: CameraCaptureSession,
                         request: CaptureRequest,
                         result: TotalCaptureResult
                     ) {
+                        if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA && !frontEffectResultLogged) {
+                            frontEffectResultLogged = true
+                            Log.i(
+                                "SignatureRenderPolicy",
+                                "PREVIEW_EFFECT_RESULT effectMode=${result.get(CaptureResult.CONTROL_EFFECT_MODE)} " +
+                                    "controlMode=${result.get(CaptureResult.CONTROL_MODE)}"
+                            )
+                        }
                         val aeMode = result.get(CaptureResult.CONTROL_AE_MODE)
                         val iso = result.get(CaptureResult.SENSOR_SENSITIVITY)
                         val shutterNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME)
@@ -2862,6 +2901,12 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                         .setJpegQuality(jpegQuality)
                         .setFlashMode(photoFlashMode)
                     // Resolve capabilities against the exact selected front or rear camera.
+                    if (frontEffectOffSupported) {
+                        Camera2Interop.Extender(imageBuilder).setCaptureRequestOption(
+                            CaptureRequest.CONTROL_EFFECT_MODE,
+                            CaptureRequest.CONTROL_EFFECT_MODE_OFF
+                        )
+                    }
                     applyStillImageQualityOptions(imageBuilder, provider, activeSelector)
                     attachStillCaptureDiagnostics(imageBuilder, provider, activeSelector)
                     applyUltraHdrIfSupported(imageBuilder, provider, activeSelector)
