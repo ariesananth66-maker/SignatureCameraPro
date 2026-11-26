@@ -177,6 +177,7 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     private var videoFps = 30
     private var videoStabilizationEnabled = false
     private var micNoiseReductionEnabled = true
+    @Volatile private var lastVideoDiagnosticElapsedMs = 0L
     private var availableFpsRanges: Array<Range<Int>> = emptyArray()
     private var activeIsoMin = 100
     private var activeIsoMax = 12800
@@ -2306,12 +2307,22 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 manager.getCameraCharacteristics(cameraId)
                     .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)
             } else null) ?: intArrayOf()
-            if (noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)) {
-                builder.setCaptureRequestOption(
-                    CaptureRequest.NOISE_REDUCTION_MODE,
+            val requestedNrMode = when {
+                noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY) ->
                     CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                )
+                noiseModes.contains(CaptureRequest.NOISE_REDUCTION_MODE_FAST) ->
+                    CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                else -> null
             }
+            if (requestedNrMode != null) {
+                builder.setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, requestedNrMode)
+            }
+            Log.i(
+                "SignatureVideoNoise",
+                "VIDEO_NR_REQUEST cameraId=$cameraId facing=${if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) "FRONT" else "REAR"} " +
+                    "supportedModes=${noiseModes.joinToString(",")} requestedMode=${requestedNrMode ?: "HAL_DEFAULT"} " +
+                    "fpsSetting=$videoFps quality=$videoQuality stabilization=$videoStabilizationEnabled"
+            )
             Camera2CameraControl.from(activeCamera.cameraControl).setCaptureRequestOptions(builder.build())
         } catch (e: Exception) {
             Toast.makeText(this, "Video setting not applied: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -2896,6 +2907,31 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                                 "PREVIEW_EFFECT_RESULT effectMode=${result.get(CaptureResult.CONTROL_EFFECT_MODE)} " +
                                     "controlMode=${result.get(CaptureResult.CONTROL_MODE)}"
                             )
+                        }
+                        if (videoMode) {
+                            val nowMs = android.os.SystemClock.elapsedRealtime()
+                            if (nowMs - lastVideoDiagnosticElapsedMs >= 2000L) {
+                                lastVideoDiagnosticElapsedMs = nowMs
+                                val physicalId = if (android.os.Build.VERSION.SDK_INT >= 28) {
+                                    result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID)
+                                } else null
+                                val isoNow = result.get(CaptureResult.SENSOR_SENSITIVITY)
+                                val exposureNow = result.get(CaptureResult.SENSOR_EXPOSURE_TIME)
+                                val frameDurationNow = result.get(CaptureResult.SENSOR_FRAME_DURATION)
+                                val nrApplied = result.get(CaptureResult.NOISE_REDUCTION_MODE)
+                                val aeFpsRange = result.get(CaptureResult.CONTROL_AE_TARGET_FPS_RANGE)
+                                val awbNow = result.get(CaptureResult.CONTROL_AWB_MODE)
+                                val gainsNow = result.get(CaptureResult.COLOR_CORRECTION_GAINS)
+                                Log.i(
+                                    "SignatureVideoNoise",
+                                    "VIDEO_FRAME_DIAGNOSTIC facing=${if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) "FRONT" else "REAR"} " +
+                                        "quality=$videoQuality fpsSetting=$videoFps stabilization=$videoStabilizationEnabled " +
+                                        "physicalId=${physicalId ?: "UNKNOWN"} ISO=${isoNow ?: -1} " +
+                                        "exposureNs=${exposureNow ?: -1L} frameDurationNs=${frameDurationNow ?: -1L} " +
+                                        "aeFpsRange=${aeFpsRange ?: "UNKNOWN"} NR_applied=${nrApplied ?: "UNKNOWN"} " +
+                                        "AWB=${awbNow ?: "UNKNOWN"} gains=${gainsNow ?: "UNKNOWN"}"
+                                )
+                            }
                         }
                         val aeMode = result.get(CaptureResult.CONTROL_AE_MODE)
                         val iso = result.get(CaptureResult.SENSOR_SENSITIVITY)
