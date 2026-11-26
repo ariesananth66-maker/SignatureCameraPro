@@ -3672,7 +3672,9 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
     }
 
     private fun saveFrontJpegBytes(bytes: ByteArray, originalExifBytes: ByteArray, processed: Boolean): Boolean {
-        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        // Use the source capture time for the filename so it agrees with DateTimeOriginal.
+        // Fall back to save time only when the source JPEG has no valid EXIF capture date.
+        val stamp = frontPhotoFileStamp(originalExifBytes)
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "Signature_Front_$stamp.jpg")
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
@@ -3710,12 +3712,34 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
         }
     }
 
+    private fun frontPhotoFileStamp(originalBytes: ByteArray): String {
+        val sourceTime = try {
+            val source = ExifInterface(ByteArrayInputStream(originalBytes))
+            source.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+                ?: source.getAttribute(ExifInterface.TAG_DATETIME)
+        } catch (_: Exception) {
+            null
+        }
+        val captureDate = try {
+            sourceTime?.let {
+                SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply {
+                    isLenient = false
+                }.parse(it)
+            }
+        } catch (_: Exception) {
+            null
+        }
+        return SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(captureDate ?: Date())
+    }
+
     private fun copyFrontPhotoExif(originalBytes: ByteArray, destination: Uri) {
         val source = ExifInterface(ByteArrayInputStream(originalBytes))
         val descriptor = contentResolver.openFileDescriptor(destination, "rw")
             ?: throw IllegalStateException("Could not open saved JPEG metadata")
         descriptor.use { parcel ->
             val target = ExifInterface(parcel.fileDescriptor)
+            // Copy supported standard EXIF fields from the source JPEG. Proprietary
+            // Motorola MakerNote data is intentionally not synthesized or fabricated.
             val tags = arrayOf(
                 ExifInterface.TAG_MAKE, ExifInterface.TAG_MODEL, ExifInterface.TAG_SOFTWARE,
                 ExifInterface.TAG_DATETIME, ExifInterface.TAG_DATETIME_ORIGINAL,
@@ -3730,11 +3754,17 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                 ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_ALTITUDE,
                 ExifInterface.TAG_GPS_ALTITUDE_REF, ExifInterface.TAG_GPS_TIMESTAMP,
                 ExifInterface.TAG_GPS_DATESTAMP, ExifInterface.TAG_ARTIST,
-                ExifInterface.TAG_COPYRIGHT
+                ExifInterface.TAG_COPYRIGHT,
+                "OffsetTime", "OffsetTimeOriginal", "OffsetTimeDigitized",
+                "SubSecTime", "SubSecTimeOriginal", "SubSecTimeDigitized",
+                "LightSource", "BrightnessValue", "SceneCaptureType",
+                "ColorSpace", "FocalLengthIn35mmFilm", "SensingMethod",
+                "ExposureMode", "Contrast", "Saturation", "Sharpness"
             )
             for (tag in tags) {
                 try { source.getAttribute(tag)?.let { target.setAttribute(tag, it) } } catch (_: Exception) { }
             }
+            // The output Bitmap has already been rotated upright before JPEG encoding.
             target.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
             target.saveAttributes()
         }
