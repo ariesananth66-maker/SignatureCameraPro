@@ -2634,6 +2634,44 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                                 "NR_requested=${requestNr?.let { nrModeName(it) } ?: "not-set"} " +
                                 "NR_applied=${resultNr?.let { nrModeName(it) } ?: "unavailable"}"
                         )
+
+                        // Structured calibration sample: metadata only; never changes image pixels.
+                        val rggb = result.get(CaptureResult.COLOR_CORRECTION_GAINS)
+                        val transform = result.get(CaptureResult.COLOR_CORRECTION_TRANSFORM)
+                        val calibrationSample = SignatureNaturalColorCalibration.CaptureSample(
+                            sampleId = "${cameraId}-${result.frameNumber}-${sensorTimestamp ?: "no-timestamp"}",
+                            cameraFacing = when (facing) {
+                                "FRONT" -> SignatureNaturalColorCalibration.CameraFacing.FRONT
+                                else -> SignatureNaturalColorCalibration.CameraFacing.REAR
+                            },
+                            sensorTimestampNs = sensorTimestamp ?: -1L,
+                            physicalCameraId = activePhysicalId,
+                            iso = iso,
+                            exposureTimeNs = exposureNs,
+                            awbMode = awbMode,
+                            colorCorrectionMode = colorCorrectionMode,
+                            awbGains = rggb?.let {
+                                listOf(it.red, it.greenEven, it.greenOdd, it.blue)
+                            },
+                            colorCorrectionTransform = transform?.let { matrix ->
+                                buildList {
+                                    for (row in 0..2) {
+                                        for (column in 0..2) {
+                                            add(matrix.getElement(row, column).toFloat())
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                        Log.i(
+                            "SignatureNaturalColor",
+                            "CALIBRATION_SAMPLE id=${calibrationSample.sampleId} facing=${calibrationSample.cameraFacing} " +
+                                "timestampNs=${calibrationSample.sensorTimestampNs} physicalId=${calibrationSample.physicalCameraId ?: "unavailable"} " +
+                                "ISO=${calibrationSample.iso ?: "unavailable"} exposureNs=${calibrationSample.exposureTimeNs ?: "unavailable"} " +
+                                "awbMode=${calibrationSample.awbMode ?: "unavailable"} ccMode=${calibrationSample.colorCorrectionMode ?: "unavailable"} " +
+                                "awbGains=${calibrationSample.awbGains ?: "unavailable"} " +
+                                "ccTransform=${calibrationSample.colorCorrectionTransform ?: "unavailable"}"
+                        )
                     }
                 }
             )
