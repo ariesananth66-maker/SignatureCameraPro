@@ -2613,11 +2613,24 @@ abstract class BaseSignatureCameraActivity : ComponentActivity() {
                         val resultNr = result.get(CaptureResult.NOISE_REDUCTION_MODE)
                         val requestNr = request.get(CaptureRequest.NOISE_REDUCTION_MODE)
                         val exposureMs = exposureNs?.let { it / 1_000_000.0 }
+                        val activePhysicalId = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID)
+                        } else null
+                        val focalLengthMm = result.get(CaptureResult.LENS_FOCAL_LENGTH)
+                        val aperture = result.get(CaptureResult.LENS_APERTURE)
+                        val awbMode = result.get(CaptureResult.CONTROL_AWB_MODE)
+                        val colorCorrectionMode = result.get(CaptureResult.COLOR_CORRECTION_MODE)
+                        val awbGains = result.get(CaptureResult.COLOR_CORRECTION_GAINS)
+                        val colorTransform = result.get(CaptureResult.COLOR_CORRECTION_TRANSFORM)
                         Log.i(
                             "SignatureCaptureDiag",
-                            "STILL_CAPTURE facing=$facing cameraId=$cameraId frame=${result.frameNumber} sensorTimestamp=${sensorTimestamp ?: "unavailable"} " +
+                            "STILL_CAPTURE facing=$facing cameraId=$cameraId physicalIds=${characteristics.physicalCameraIds.joinToString()} " +
+                                "activePhysicalId=${activePhysicalId ?: "unavailable"} frame=${result.frameNumber} sensorTimestamp=${sensorTimestamp ?: "unavailable"} " +
                                 "ISO=${iso ?: "unavailable"} exposureNs=${exposureNs ?: "unavailable"} " +
                                 "exposureMs=${exposureMs?.let { "%.3f".format(Locale.US, it) } ?: "unavailable"} " +
+                                "focalLengthMm=${focalLengthMm ?: "unavailable"} aperture=${aperture ?: "unavailable"} " +
+                                "awbMode=${awbMode ?: "unavailable"} colorCorrectionMode=${colorCorrectionMode ?: "unavailable"} " +
+                                "awbGains=${awbGains ?: "unavailable"} colorTransform=${colorTransform ?: "unavailable"} " +
                                 "NR_requested=${requestNr?.let { nrModeName(it) } ?: "not-set"} " +
                                 "NR_applied=${resultNr?.let { nrModeName(it) } ?: "unavailable"}"
                         )
