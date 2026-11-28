@@ -1,44 +1,99 @@
 <?xml version="1.0" encoding="utf-8"?>
+    <!-- Whole launcher artwork scaled uniformly; preserves the confirmed design and proportions -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.80"
+        android:scaleY="0.80">
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Pantone Carbon-inspired rounded camera body -->
     <path
-        android:fillColor="#202329"
-        android:strokeColor="#AEB5C1"
-        android:strokeWidth="1.5"
-        android:pathData="M18,34 C18,29 22,25 27,25 L38,25 L44,18 C45,16 48,15 51,15 L66,15 C69,15 72,16 74,19 L79,25 L82,25 C87,25 91,29 91,34 L91,75 C91,80 87,84 82,84 L27,84 C22,84 18,80 18,75 Z"/>
+        android:fillColor="#101B2B"
+        android:strokeColor="#78879A"
+        android:strokeWidth="1.4"
+        android:pathData="M18,3.5 H90 C98,3.5 104.5,10 104.5,18 V90 C104.5,98 98,104.5 90,104.5 H18 C10,104.5 3.5,98 3.5,90 V18 C3.5,10 10,3.5 18,3.5 Z" />
+
+    <!-- Fine woven carbon/linen grain, kept subtle at launcher size -->
     <path
-        android:fillColor="#090B10"
-        android:strokeColor="#D5D9E0"
-        android:strokeWidth="2.2"
-        android:pathData="M54,28 A27,27 0,1 0,54 82 A27,27 0,1 0,54 28 Z"/>
+        android:fillColor="#00000000"
+        android:strokeColor="#26374B"
+        android:strokeAlpha="0.72"
+        android:strokeWidth="0.65"
+        android:pathData="M8,18 L18,8 M8,29 L29,8 M8,40 L40,8 M8,51 L51,8 M8,62 L62,8 M8,73 L73,8 M8,84 L84,8 M8,95 L95,8 M18,100 L100,18 M29,100 L100,29 M40,100 L100,40 M51,100 L100,51 M62,100 L100,62 M73,100 L100,73 M84,100 L100,84" />
     <path
-        android:fillColor="#101827"
-        android:strokeColor="#77879F"
-        android:strokeWidth="1.8"
-        android:pathData="M54,34 A21,21 0,1 0,54 76 A21,21 0,1 0,54 34 Z"/>
+        android:fillColor="#00000000"
+        android:strokeColor="#07111F"
+        android:strokeAlpha="0.8"
+        android:strokeWidth="0.55"
+        android:pathData="M8,23 L23,8 M8,34 L34,8 M8,45 L45,8 M8,56 L56,8 M8,67 L67,8 M8,78 L78,8 M8,89 L89,8 M19,100 L100,19 M30,100 L100,30 M41,100 L100,41 M52,100 L100,52 M63,100 L100,63 M74,100 L100,74 M85,100 L100,85" />
+
+    <!-- Lens assembly reduced to 60%; flash and carbon body remain unchanged -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.60"
+        android:scaleY="0.60">
     <path
-        android:fillColor="#07172B"
-        android:strokeColor="#168DFF"
-        android:strokeWidth="1.8"
-        android:pathData="M54,40 A15,15 0,1 0,54 70 A15,15 0,1 0,54 40 Z"/>
+        android:fillColor="#080D16"
+        android:strokeColor="#AAB5C3"
+        android:strokeWidth="2.1"
+        android:pathData="M54,21 A33,33 0,1 0,54 87 A33,33 0,1 0,54 21 Z" />
     <path
-        android:fillColor="#102D58"
-        android:pathData="M54,45 A10,10 0,1 0,54 65 A10,10 0,1 0,54 45 Z"/>
+        android:fillColor="#151D29"
+        android:strokeColor="#596879"
+        android:strokeWidth="1.4"
+        android:pathData="M54,25 A29,29 0,1 0,54 83 A29,29 0,1 0,54 25 Z" />
     <path
-        android:fillColor="#E9F7FF"
-        android:fillAlpha="0.92"
-        android:pathData="M46,48 A4,4 0,1 0,46 56 A4,4 0,1 0,46 48 Z"/>
+        android:fillColor="#080D16"
+        android:strokeColor="#8794A4"
+        android:strokeWidth="1.1"
+        android:pathData="M54,30 A24,24 0,1 0,54 78 A24,24 0,1 0,54 30 Z" />
     <path
-        android:fillColor="#10151F"
-        android:strokeColor="#7B8797"
+        android:fillColor="#050912"
+        android:strokeColor="#303D50"
         android:strokeWidth="1.2"
-        android:pathData="M28,31 A5,5 0,1 0,28 41 A5,5 0,1 0,28 31 Z"/>
+        android:pathData="M54,36 A18,18 0,1 0,54 72 A18,18 0,1 0,54 36 Z" />
     <path
-        android:fillColor="#E7B66D"
-        android:strokeColor="#FFF0C8"
-        android:strokeWidth="1"
-        android:pathData="M79,31 A5,5 0,1 0,79 41 A5,5 0,1 0,79 31 Z"/>
+        android:fillColor="#10243D"
+        android:strokeColor="#54769B"
+        android:strokeWidth="1.1"
+        android:pathData="M54,41 A13,13 0,1 0,54 67 A13,13 0,1 0,54 41 Z" />
+    <path
+        android:fillColor="#050A13"
+        android:strokeColor="#253A56"
+        android:strokeWidth="0.8"
+        android:pathData="M54,46 A8,8 0,1 0,54 62 A8,8 0,1 0,54 46 Z" />
+
+    <!-- Cool blue and violet optical reflections -->
+    <path
+        android:fillColor="#8DBBFA"
+        android:fillAlpha="0.82"
+        android:pathData="M41,43 C44,36 51,33 58,35 C51,38 47,43 45,50 Z" />
+    <path
+        android:fillColor="#7956D9"
+        android:fillAlpha="0.78"
+        android:pathData="M66,65 C71,60 73,54 70,47 C78,54 76,65 68,70 Z" />
+    <path
+        android:fillColor="#D9E8F8"
+        android:fillAlpha="0.72"
+        android:pathData="M48,48 C51,44 56,43 60,45 C55,45 52,48 50,52 Z" />
+
+    </group>
+
+    <!-- Warm precision flash -->
+    <path
+        android:fillColor="#0A101A"
+        android:strokeColor="#8B98A8"
+        android:strokeWidth="1.3"
+        android:pathData="M86,12 A8,8 0,1 0,86 28 A8,8 0,1 0,86 12 Z" />
+    <path
+        android:fillColor="#E8D7B2"
+        android:pathData="M86,15 A5,5 0,1 0,86 25 A5,5 0,1 0,86 15 Z" />
+    </group>
 </vector>
