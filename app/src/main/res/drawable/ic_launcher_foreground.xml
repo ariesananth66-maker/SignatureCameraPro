@@ -26,7 +26,12 @@
         android:strokeWidth="0.55"
         android:pathData="M8,23 L23,8 M8,34 L34,8 M8,45 L45,8 M8,56 L56,8 M8,67 L67,8 M8,78 L78,8 M8,89 L89,8 M19,100 L100,19 M30,100 L100,30 M41,100 L100,41 M52,100 L100,52 M63,100 L100,63 M74,100 L100,74 M85,100 L100,85" />
 
-    <!-- Precision lens housing and brushed-metal rings -->
+    <!-- Precision lens housing and brushed-metal rings; reduced to leave more body visible -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.78"
+        android:scaleY="0.78">
     <path
         android:fillColor="#080D16"
         android:strokeColor="#AAB5C3"
@@ -71,6 +76,8 @@
         android:fillColor="#D9E8F8"
         android:fillAlpha="0.72"
         android:pathData="M48,48 C51,44 56,43 60,45 C55,45 52,48 50,52 Z" />
+
+    </group>
 
     <!-- Warm precision flash -->
     <path
