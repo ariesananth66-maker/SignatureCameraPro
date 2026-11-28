@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+    <!-- Whole launcher artwork scaled uniformly; preserves the confirmed design and proportions -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.80"
+        android:scaleY="0.80">
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -88,4 +95,5 @@
     <path
         android:fillColor="#E8D7B2"
         android:pathData="M86,15 A5,5 0,1 0,86 25 A5,5 0,1 0,86 15 Z" />
+    </group>
 </vector>
